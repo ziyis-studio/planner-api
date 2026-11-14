@@ -1,0 +1,19 @@
+name: Verify API
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .node-version
+      - run: npm install --global pnpm@11.25.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test --maxWorkers=2
+      - run: npm install --global deno@2.9.6
+      - run: deno fmt --check supabase/functions/username-login
+      - run: deno check --config supabase/functions/username-login/deno.json supabase/functions/username-login/index.ts

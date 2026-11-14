@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "pnpm typecheck",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "functions": { "api/index.ts": { "maxDuration": 30 } },
+  "rewrites": [
+    { "source": "/v1/:path*", "destination": "/api/index?route=/v1/:path*" }
+  ]
+}

@@ -1,0 +1,7 @@
+project_id = "planner-core"
+
+[functions.username-login]
+# A sign-in request has no user JWT yet. The handler authenticates the supplied
+# password with Supabase Auth before returning any session, and applies rate limits.
+verify_jwt = false
+entrypoint = "./functions/username-login/index.ts"
