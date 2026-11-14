@@ -1,4 +1,4 @@
-import type { NoteTarget, Workspace } from "./model";
+import type { NoteTarget, Workspace } from "./model.js";
 
 export const targetKey = (target: NoteTarget) => `${target.kind}:${target.id}`;
 export function noteTargets(state: Workspace, noteId: string): NoteTarget[] {

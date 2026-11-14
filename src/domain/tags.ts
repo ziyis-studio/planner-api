@@ -1,5 +1,5 @@
-import { PlannerError } from "./model";
-import type { Task, Workspace } from "./model";
+import { PlannerError } from "./model.js";
+import type { Task, Workspace } from "./model.js";
 export function normalizeTags(tags: string[]): string[] {
   const values = [
     ...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean)),

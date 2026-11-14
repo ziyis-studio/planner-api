@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
-import { runtimeApi } from "./runtime";
-import { httpHandler } from "./http";
+import { runtimeApi } from "./runtime.js";
+import { httpHandler } from "./http.js";
 const server = createServer(httpHandler(runtimeApi()));
 server.requestTimeout = 30_000;
 server.headersTimeout = 15_000;

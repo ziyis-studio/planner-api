@@ -1,12 +1,12 @@
-import { availableForSchedule } from "./tags";
+import { availableForSchedule } from "./tags.js";
 import type {
   HabitOccurrence,
   Task,
   Thought,
   TimeBlock,
   Workspace,
-} from "./model";
-import { dayBounds, dayKey } from "./time";
+} from "./model.js";
+import { dayBounds, dayKey } from "./time.js";
 
 export type TimelineKind = "task" | "habit" | "activity" | "thought";
 export type TimelineEntry =

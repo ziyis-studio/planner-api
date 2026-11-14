@@ -1,15 +1,15 @@
-import { parseCommand } from "./command-schema";
+import { parseCommand } from "./command-schema.js";
 import { z } from "zod";
-import type { ApiRepository } from "./repository";
-import { ApiError } from "./repository";
-import { PlannerError } from "./domain/model";
-import type { NoteTarget } from "./domain/model";
-import type { Command } from "./domain/commands";
+import type { ApiRepository } from "./repository.js";
+import { ApiError } from "./repository.js";
+import { PlannerError } from "./domain/model.js";
+import type { NoteTarget } from "./domain/model.js";
+import type { Command } from "./domain/commands.js";
 import {
   databaseFieldsSchema,
   databaseValuesSchema,
   databaseRecordView,
-} from "./domain/note-databases";
+} from "./domain/note-databases.js";
 const title = z.string().trim().min(1).max(300);
 const noteSchema = z
   .object({

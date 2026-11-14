@@ -1,5 +1,5 @@
-import type { Task, TimeBlock, Workspace } from "./model";
-import { taskBlocks } from "./selectors";
+import type { Task, TimeBlock, Workspace } from "./model.js";
+import { taskBlocks } from "./selectors.js";
 
 export type TaskScheduleStatus =
   "unscheduled" | "scheduled" | "active" | "past" | "completed";

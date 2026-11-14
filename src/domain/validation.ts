@@ -2,13 +2,13 @@ import {
   databaseFieldsSchema,
   databaseValuesSchema,
   validateDatabaseValues,
-} from "./note-databases";
+} from "./note-databases.js";
 import { z } from "zod";
-import { PlannerError } from "./model";
-import type { Workspace } from "./model";
-import { isDay, isTimeZone } from "./time";
-import { habitIconNames } from "./habit-icons";
-import { projectIconNames } from "./project-icons";
+import { PlannerError } from "./model.js";
+import type { Workspace } from "./model.js";
+import { isDay, isTimeZone } from "./time.js";
+import { habitIconNames } from "./habit-icons.js";
+import { projectIconNames } from "./project-icons.js";
 
 const id = z.string().uuid();
 const timestamp = z.string().datetime({ offset: true });

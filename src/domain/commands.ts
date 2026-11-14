@@ -2,21 +2,21 @@ import {
   databaseFieldsSchema,
   databaseValuesSchema,
   validateDatabaseValues,
-} from "./note-databases";
+} from "./note-databases.js";
 import type {
   DatabaseField,
   DatabaseValue,
   NoteDatabase,
   DatabaseRecord,
-} from "./note-databases";
-import { normalizeTags, validWorkStatus } from "./tags";
+} from "./note-databases.js";
+import { normalizeTags, validWorkStatus } from "./tags.js";
 import {
   canCompleteProject,
   canCompleteTask,
   PlannerError,
   requireItem,
   systemClock,
-} from "./model";
+} from "./model.js";
 import type {
   Clock,
   Entity,
@@ -24,14 +24,14 @@ import type {
   TimeBlock,
   Workspace,
   NoteTarget,
-} from "./model";
-import { addDays, isDay, isTimeZone, isoWeekday } from "./time";
-import { habitIconNames } from "./habit-icons";
-import type { HabitIconName } from "./habit-icons";
-import { projectIconNames } from "./project-icons";
-import type { ProjectIconName } from "./project-icons";
-import { projectTasks } from "./order";
-import { reconcileHabitStarts } from "./habit-occurrences";
+} from "./model.js";
+import { addDays, isDay, isTimeZone, isoWeekday } from "./time.js";
+import { habitIconNames } from "./habit-icons.js";
+import type { HabitIconName } from "./habit-icons.js";
+import { projectIconNames } from "./project-icons.js";
+import type { ProjectIconName } from "./project-icons.js";
+import { projectTasks } from "./order.js";
+import { reconcileHabitStarts } from "./habit-occurrences.js";
 
 export type OrderRevision = Pick<Entity, "id" | "updatedAt">;
 

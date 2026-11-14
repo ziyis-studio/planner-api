@@ -1,4 +1,4 @@
-import { addDays, dateLabel, dayKey, isDay } from "./time";
+import { addDays, dateLabel, dayKey, isDay } from "./time.js";
 
 export type TimeTag = { kind: "date" | "instant"; value: string };
 export function validTimeTag(value: unknown): value is TimeTag {

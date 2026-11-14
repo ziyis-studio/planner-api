@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { PlannerError } from "./model";
+import { PlannerError } from "./model.js";
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
 function formatter(locale: string, options: Intl.DateTimeFormatOptions) {

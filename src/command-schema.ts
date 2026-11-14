@@ -1,12 +1,12 @@
 import { z } from "zod";
-import type { Command } from "./domain/commands";
+import type { Command } from "./domain/commands.js";
 import {
   databaseFieldsSchema,
   databaseValuesSchema,
-} from "./domain/note-databases";
-import { isDay, isTimeZone } from "./domain/time";
-import { habitIconNames } from "./domain/habit-icons";
-import { projectIconNames } from "./domain/project-icons";
+} from "./domain/note-databases.js";
+import { isDay, isTimeZone } from "./domain/time.js";
+import { habitIconNames } from "./domain/habit-icons.js";
+import { projectIconNames } from "./domain/project-icons.js";
 const id = z.uuid(),
   ids = z.array(id).max(1000),
   title = z.string().trim().min(1).max(300),

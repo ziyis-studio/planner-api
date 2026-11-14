@@ -1,11 +1,11 @@
-import { validateImage, validateStoredImage, imageKey } from "./image-store";
-import { parseWorkspace } from "./domain/validation";
+import { validateImage, validateStoredImage, imageKey } from "./image-store.js";
+import { parseWorkspace } from "./domain/validation.js";
 import { createClient } from "@supabase/supabase-js";
-import { applyCommand } from "./domain/commands";
-import type { Command, CommandResult } from "./domain/commands";
-import type { Workspace } from "./domain/model";
-import { PlannerError } from "./domain/model";
-import { changesBetween, fromCloud } from "./cloud-mapping";
+import { applyCommand } from "./domain/commands.js";
+import type { Command, CommandResult } from "./domain/commands.js";
+import type { Workspace } from "./domain/model.js";
+import { PlannerError } from "./domain/model.js";
+import { changesBetween, fromCloud } from "./cloud-mapping.js";
 export interface ApiRepository {
   load(): Promise<Workspace>;
   profile?: {

@@ -1,5 +1,5 @@
-import type { NoteTarget } from "./model";
-import { timeTagFromURL } from "./time-tags";
+import type { NoteTarget } from "./model.js";
+import { timeTagFromURL } from "./time-tags.js";
 export function internalNoteTarget(url: string): NoteTarget | null {
   const match =
     /^planner:\/\/(note|task|project|thought)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(

@@ -1,4 +1,4 @@
-import type { CompletionCondition, Task, Workspace } from "./model";
+import type { CompletionCondition, Task, Workspace } from "./model.js";
 
 export const compareProjectTasks = (a: Task, b: Task) =>
   (a.projectPosition ?? 0) - (b.projectPosition ?? 0) ||

@@ -1,5 +1,5 @@
-import type { SleepRecord } from "./model";
-import { dayKey, minutesBetween } from "./time";
+import type { SleepRecord } from "./model.js";
+import { dayKey, minutesBetween } from "./time.js";
 
 export function sleepMinutes(
   record: Pick<SleepRecord, "startsAt" | "endsAt" | "awakeMinutes">,

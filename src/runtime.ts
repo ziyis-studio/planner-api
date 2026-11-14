@@ -1,5 +1,5 @@
-import { createApi } from "./app";
-import { supabaseRepository } from "./repository";
+import { createApi } from "./app.js";
+import { supabaseRepository } from "./repository.js";
 export function runtimeApi() {
   const {
     SUPABASE_URL,

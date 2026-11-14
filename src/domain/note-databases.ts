@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { isDay } from "./time";
-import { PlannerError } from "./model";
-import type { Entity } from "./model";
+import { isDay } from "./time.js";
+import { PlannerError } from "./model.js";
+import type { Entity } from "./model.js";
 export const databaseFieldTypes = [
   "text",
   "number",

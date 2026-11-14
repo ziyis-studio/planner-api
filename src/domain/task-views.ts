@@ -1,7 +1,7 @@
-import type { Task, Workspace } from "./model";
-import { availableForSchedule } from "./tags";
-import { taskBlocks } from "./selectors";
-import { dayBounds } from "./time";
+import type { Task, Workspace } from "./model.js";
+import { availableForSchedule } from "./tags.js";
+import { taskBlocks } from "./selectors.js";
+import { dayBounds } from "./time.js";
 
 export function taskWorkState(state: Workspace, task: Task) {
   if (task.completedAt) return "completed";

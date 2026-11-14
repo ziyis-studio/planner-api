@@ -1,5 +1,5 @@
-import type { Workspace } from "./domain/model";
-import { parseWorkspace } from "./domain/validation";
+import type { Workspace } from "./domain/model.js";
+import { parseWorkspace } from "./domain/validation.js";
 
 export const tables = [
   ["tagCatalog", "tag_catalog", ["id"]],

@@ -1,4 +1,4 @@
-import type { Workspace } from "./model";
+import type { Workspace } from "./model.js";
 
 /** Discard only unused default occurrences before the routine's start. */
 export function reconcileHabitStarts(

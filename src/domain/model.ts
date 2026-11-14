@@ -1,6 +1,6 @@
-import type { NoteDatabase, DatabaseRecord } from "./note-databases";
-import type { HabitIconName } from "./habit-icons";
-import type { ProjectIconName } from "./project-icons";
+import type { NoteDatabase, DatabaseRecord } from "./note-databases.js";
+import type { HabitIconName } from "./habit-icons.js";
+import type { ProjectIconName } from "./project-icons.js";
 
 export interface Entity {
   id: string;
