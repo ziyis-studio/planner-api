@@ -125,4 +125,8 @@ corepack pnpm typecheck
 corepack pnpm test --maxWorkers=2
 ```
 
-37 tests currently cover HTTP commands, domain completion/reopening, typed records and conflicts, PostgreSQL migrations/ownership, private image policies and existing SQL verification scripts. Tests use isolated PGlite and synthetic records, never production data. Container configuration is supplied; a container build has not been verified in this environment.
+46 tests currently cover HTTP commands, domain completion/reopening, typed records and conflicts, PostgreSQL migrations/ownership, private image policies and existing SQL verification scripts. Tests use isolated PGlite and synthetic records, never production data. Container configuration is supplied; a container build has not been verified in this environment.
+
+## Hosting status
+
+GitHub: https://github.com/ziyis-studio/planner-api. Vercel project: `planner-api` (`prj_9vYHGssHhuc2ww3RxDi2MmFpuh2B`). Production alias: `https://planner-api-ziyis-studio.vercel.app`. Deployment protection is retained pending explicit approval to allow ordinary frontend API requests; Supabase bearer-token authentication remains mandatory regardless of Vercel protection. The additive note-database migration has been applied and anonymous RPC execution is denied.
