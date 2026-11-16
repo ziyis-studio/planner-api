@@ -51,6 +51,7 @@ const edit = { id, expectedUpdatedAt: revision.optional() };
 const schemas = {
   "task.create": object({
     input: task.extend({
+      initialStage: z.enum(["todo", "progress", "hold", "done"]).optional(),
       conditions: z.array(short).max(1000).optional(),
       sourceThoughtIds: ids.optional(),
     }),
@@ -69,7 +70,11 @@ const schemas = {
     }),
   }),
   "condition.delete": object({ id }),
-  "project.create": object({ input: project }),
+  "project.create": object({
+    input: project.extend({
+      initialStage: z.enum(["progress", "hold", "done"]).optional(),
+    }),
+  }),
   "project.update": object({ ...edit, input: project }),
   "project.delete": object({ id }),
   "project.complete": object({ id }),

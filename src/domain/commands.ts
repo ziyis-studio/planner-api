@@ -36,6 +36,7 @@ import { reconcileHabitStarts } from "./habit-occurrences.js";
 export type OrderRevision = Pick<Entity, "id" | "updatedAt">;
 
 export interface TaskInput {
+  initialStage?: "todo" | "progress" | "hold" | "done";
   tags?: string[];
   workStatus?: "active" | "on_hold";
   title: string;
@@ -46,6 +47,7 @@ export interface TaskInput {
   sourceThoughtIds?: string[];
 }
 export interface ProjectInput {
+  initialStage?: "progress" | "hold" | "done";
   tags?: string[];
   workStatus?: "active" | "on_hold";
   icon?: ProjectIconName | null;
@@ -613,6 +615,16 @@ export function applyCommand(
     }
     case "task.create": {
       const input = command.input;
+      const status = validWorkStatus(input.workStatus);
+      const stage =
+        input.initialStage ?? (status === "on_hold" ? "hold" : "todo");
+      if (!["todo", "progress", "hold", "done"].includes(stage))
+        throw new PlannerError("invalid", "Choose a valid task status.");
+      if (stage === "done" && input.conditions?.length)
+        throw new PlannerError(
+          "conditions_unmet",
+          "Meet every completion condition before confirming this task. Choose another status to create it first.",
+        );
       if (input.projectId)
         requireItem(state.projects, input.projectId, "Project");
       if (input.deadline != null && !isDay(input.deadline))
@@ -620,14 +632,15 @@ export function applyCommand(
       const task = {
         ...entity(),
         tags: normalizeTags(input.tags || []),
-        workStatus: validWorkStatus(input.workStatus),
+        workStatus:
+          stage === "hold" ? ("on_hold" as const) : ("active" as const),
         deadline: input.deadline ?? null,
-        startedAt: null,
+        startedAt: stage === "progress" || stage === "done" ? now : null,
         title: requiredText(input.title),
         description: input.description ?? "",
         projectId: input.projectId || null,
         projectPosition: nextProjectPosition(input.projectId || null),
-        completedAt: null,
+        completedAt: stage === "done" ? now : null,
       };
       state.tasks.push(task);
       (input.conditions ?? []).forEach((description, position) =>
@@ -640,7 +653,7 @@ export function applyCommand(
         }),
       );
       linkSources("task", task.id, input.sourceThoughtIds ?? []);
-      reopenParent(task.projectId);
+      if (!task.completedAt) reopenParent(task.projectId);
       resultId = task.id;
       break;
     }
@@ -761,16 +774,23 @@ export function applyCommand(
       );
       break;
     case "project.create": {
+      const status = validWorkStatus(command.input.workStatus);
+      const stage =
+        command.input.initialStage ??
+        (status === "on_hold" ? "hold" : "progress");
+      if (!["progress", "hold", "done"].includes(stage))
+        throw new PlannerError("invalid", "Choose a valid project status.");
       const project = {
         ...entity(),
         tags: normalizeTags(command.input.tags || []),
-        workStatus: validWorkStatus(command.input.workStatus),
+        workStatus:
+          stage === "hold" ? ("on_hold" as const) : ("active" as const),
         ...(command.input.icon !== undefined
           ? { icon: validProjectIcon(command.input.icon) }
           : {}),
         title: requiredText(command.input.title),
         description: command.input.description ?? "",
-        completedAt: null,
+        completedAt: stage === "done" ? now : null,
       };
       state.projects.push(project);
       resultId = project.id;

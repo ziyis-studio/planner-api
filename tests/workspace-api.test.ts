@@ -30,6 +30,84 @@ function fixture() {
     },
   };
 }
+test("column creation persists the requested task and project stages in one command", async () => {
+  const f = fixture();
+  for (const initialStage of ["todo", "progress", "hold", "done"]) {
+    const response = await f.request("/commands", {
+      type: "task.create",
+      input: { title: initialStage, initialStage },
+    });
+    expect(response.status).toBe(200);
+    const task = f.state.tasks.at(-1)!;
+    expect(task.completedAt !== null).toBe(initialStage === "done");
+    expect(!!task.startedAt).toBe(
+      initialStage === "progress" || initialStage === "done",
+    );
+    expect(task.workStatus).toBe(
+      initialStage === "hold" ? "on_hold" : "active",
+    );
+  }
+  for (const initialStage of ["progress", "hold", "done"]) {
+    expect(
+      (
+        await f.request("/commands", {
+          type: "project.create",
+          input: { title: initialStage, initialStage },
+        })
+      ).status,
+    ).toBe(200);
+    const project = f.state.projects.at(-1)!;
+    expect(!!project.completedAt).toBe(initialStage === "done");
+    expect(project.workStatus).toBe(
+      initialStage === "hold" ? "on_hold" : "active",
+    );
+  }
+  const project = f.state.projects.at(-1)!;
+  expect(
+    (
+      await f.request("/commands", {
+        type: "task.create",
+        input: {
+          title: "Already finished",
+          initialStage: "done",
+          projectId: project.id,
+        },
+      })
+    ).status,
+  ).toBe(200);
+  expect(f.state.projects.at(-1)!.completedAt).toBe(project.completedAt);
+});
+test("invalid creation stages and unmet Done conditions leave no partial records", async () => {
+  const f = fixture(),
+    original = JSON.stringify(f.state);
+  expect(
+    (
+      await f.request("/commands", {
+        type: "task.create",
+        input: { title: "Wrong", initialStage: "unknown" },
+      })
+    ).status,
+  ).toBe(422);
+  expect(
+    (
+      await f.request("/commands", {
+        type: "project.create",
+        input: { title: "Wrong", initialStage: "todo" },
+      })
+    ).status,
+  ).toBe(422);
+  const response = await f.request("/commands", {
+    type: "task.create",
+    input: {
+      title: "Not done",
+      initialStage: "done",
+      conditions: ["Verify work"],
+    },
+  });
+  expect(response.ok).toBe(false);
+  expect((await response.json()).error.code).toBe("conditions_unmet");
+  expect(JSON.stringify(f.state)).toBe(original);
+});
 test("all application business operations run through the API, preserving completion gates", async () => {
   const f = fixture();
   const run = async (body: unknown) => {

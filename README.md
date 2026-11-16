@@ -80,6 +80,14 @@ One command is a business transaction. Commands are strictly validated against `
 
 Supported command groups:
 
+`task.create.input.initialStage` optionally accepts `todo`, `progress`, `hold`,
+or `done`; `project.create.input.initialStage` accepts `progress`, `hold`, or
+`done`. The initial stage takes precedence over `workStatus` when supplied and
+sets the existing work/start/completion fields in the same transaction as
+creation. Omitting it preserves the previous behavior. A new Done task cannot
+have unmet completion conditions: the command rejects without creating a task
+or any conditions. These options require no database migration.
+
 - Task: create, update, delete, complete, reopen, continue, reorderConditions.
 - Project: create, update, delete, complete, reopen, reorderTasks.
 - Condition: add, update, delete.
