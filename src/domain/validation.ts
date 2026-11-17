@@ -73,6 +73,8 @@ const execution = entity.extend({
   note: z.string(),
 });
 const block = entity.extend({
+  recordedType: z.enum(["focus", "short", "long"]).nullable().optional(),
+  sourceSessionId: id.nullable().optional(),
   title: z.string(),
   description: z.string(),
   startsAt: timestamp,

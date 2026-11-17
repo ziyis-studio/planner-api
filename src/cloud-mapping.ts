@@ -119,6 +119,8 @@ export function changesBetween(
     );
     for (const row of after[property]) {
       const cloud = toCloud(row);
+      // Recorded provenance is set by the completion/recovery transaction only.
+      if (table === "time_blocks") {delete cloud.recorded_type; delete cloud.source_session_id;}
       const old = previous.get(JSON.stringify(keys.map((key) => cloud[key])));
       if (!old) changes.push({ table, action: "insert", row: cloud });
       else if (JSON.stringify(old) !== JSON.stringify(row))

@@ -91,6 +91,8 @@ export interface HabitExecution extends Entity {
   note: string;
 }
 export interface TimeBlock extends Entity {
+  recordedType?: "focus" | "short" | "long" | null;
+  sourceSessionId?: string | null;
   title: string;
   description: string;
   startsAt: string;
