@@ -6,7 +6,10 @@ import type { Command, CommandResult } from "./domain/commands.js";
 import type { Workspace } from "./domain/model.js";
 import { PlannerError } from "./domain/model.js";
 import { changesBetween, fromCloud } from "./cloud-mapping.js";
+import { accountRecovery } from "./account-recovery.js";
+import { recoveryPatch } from "./domain/recovery.js";
 export interface ApiRepository {
+  recovery?: ReturnType<typeof accountRecovery>;
   load(): Promise<Workspace>;
   profile?: {
     load(): Promise<string | null>;
@@ -55,6 +58,7 @@ export function supabaseRepository(url: string, key: string) {
     };
     return {
       load,
+      recovery: accountRecovery(client, ownerId, load),
       profile: {
         async load() {
           const { data, error } = await client
@@ -131,14 +135,36 @@ export function supabaseRepository(url: string, key: string) {
         const result = applyCommand(before, command);
         parseWorkspace(result.snapshot);
         const changes = changesBetween(before, result.snapshot);
+        const recoverable =
+          command.type.endsWith(".delete") && changes.length > 0;
+        const patch = recoverable
+          ? recoveryPatch(before, result.snapshot)
+          : null;
+        const recoveryId = recoverable ? crypto.randomUUID() : undefined;
+        const root =
+          "id" in command
+            ? (Object.values(before)
+                .flat()
+                .find((r: any) => r?.id === command.id) as any)
+            : null;
         if (changes.length) {
-          const { error } = await (command.type === "database.record.save"
-            ? client.rpc("planner_apply_database_record_changes", {
+          const { error } = await (recoverable
+            ? client.rpc("planner_apply_recoverable_changes", {
                 changes,
-                database_id: command.input.databaseId,
-                database_revision: command.databaseRevision,
+                recovery: {
+                  id: recoveryId,
+                  kind: command.type.split(".")[0],
+                  title: root?.title || root?.description || "Deleted item",
+                  payload: patch,
+                },
               })
-            : client.rpc("planner_apply_changes", { changes }));
+            : command.type === "database.record.save"
+              ? client.rpc("planner_apply_database_record_changes", {
+                  changes,
+                  database_id: command.input.databaseId,
+                  database_revision: command.databaseRevision,
+                })
+              : client.rpc("planner_apply_changes", { changes }));
           if (error) {
             if (
               command.type === "occurrences.materialize" &&
@@ -163,7 +189,7 @@ export function supabaseRepository(url: string, key: string) {
             );
           }
         }
-        return { id: result.id, snapshot: await load() };
+        return { id: result.id, snapshot: await load(), recoveryId };
       },
     };
   };

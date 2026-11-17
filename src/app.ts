@@ -43,7 +43,7 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).max(100000).default(0),
 });
-async function body(request: Request) {
+async function body(request: Request, limit = 1_048_576) {
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new ApiError(415, "content_type", "Use application/json.");
   const reader = request.body?.getReader();
@@ -54,9 +54,13 @@ async function body(request: Request) {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.length;
-    if (size > 1_048_576) {
+    if (size > limit) {
       await reader.cancel();
-      throw new ApiError(413, "body_too_large", "Maximum body size is 1 MiB.");
+      throw new ApiError(
+        413,
+        "body_too_large",
+        `Maximum body size is ${limit === 1_048_576 ? "1 MiB" : "3.5 MB"}.`,
+      );
     }
     chunks.push(value);
   }
@@ -120,6 +124,49 @@ export function createApi(
         if (request.method !== "GET")
           throw new ApiError(405, "method_not_allowed", "Use GET.");
         return json({ data: await (await authRepo()).load() });
+      }
+      if (path === "/v1/backup" || path.startsWith("/v1/recovery")) {
+        const repo = await authRepo();
+        if (!repo.recovery)
+          throw new ApiError(503, "unavailable", "Recovery unavailable.");
+        if (path === "/v1/backup") {
+          if (request.method === "GET")
+            return json({ data: await repo.recovery.backup() });
+          if (request.method === "POST") {
+            const input = z
+              .object({ backup: z.unknown(), asCopy: z.boolean().optional() })
+              .strict()
+              .parse(await body(request, 3_500_000));
+            return json({
+              data: await repo.recovery.import(input.backup, input.asCopy),
+            });
+          }
+        } else {
+          const match =
+            /^\/v1\/recovery(?:\/([0-9a-f-]{36})(\/restore)?)?$/.exec(path);
+          if (!match)
+            throw new ApiError(404, "not_found", "Unknown recovery entry.");
+          const [, id, restore] = match;
+          if (!id && request.method === "GET")
+            return json({
+              data: await repo.recovery.list(
+                z.coerce
+                  .number()
+                  .int()
+                  .min(0)
+                  .max(100000)
+                  .parse(url.searchParams.get("offset") || 0),
+              ),
+            });
+          if (id) z.uuid().parse(id);
+          if (id && restore && request.method === "POST")
+            return json({ data: await repo.recovery.restore(id) });
+          if (id && !restore && request.method === "DELETE") {
+            await repo.recovery.purge(id);
+            return json({ data: { deleted: true } });
+          }
+        }
+        throw new ApiError(405, "method_not_allowed", "Method not allowed.");
       }
       if (path === "/v1/commands") {
         if (request.method !== "POST")

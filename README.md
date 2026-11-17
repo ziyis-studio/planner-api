@@ -138,3 +138,31 @@ corepack pnpm test --maxWorkers=2
 ## Hosting status
 
 GitHub: https://github.com/ziyis-studio/planner-api. Vercel project: `planner-api` (`prj_9vYHGssHhuc2ww3RxDi2MmFpuh2B`). Production alias: `https://planner-api-ziyis-studio.vercel.app`. On November 15, 2026, the user approved preview-only Vercel Authentication. Production API calls now use Supabase bearer-token authentication and RLS; preview deployments retain Vercel protection. The frontend production cutover is complete at https://planner-core-puce.vercel.app. API health and the frontend bundled API configuration were verified; authenticated real-user writes were not exercised in production. The additive note-database migration has been applied and anonymous RPC execution is denied.
+
+### Focus records and recovery
+
+Completed Pomodoro sessions may reference an owned task; the task title is also
+kept as a snapshot. A completion and its actual Schedule block/task link are
+committed atomically. Retries reuse the session identity; task completion remains
+manual. Deleting a task or a recording's block preserves the completion history.
+
+DELETE commands write a compact inverse patch into owner-scoped
+`planner_recovery` within the same transaction. `GET /v1/recovery?offset=0`
+lists 50 active entries; `POST /v1/recovery/:id/restore` restores removed rows and
+unchanged detached references. Conflicting later edits abort the entire restore.
+`DELETE /v1/recovery/:id` permanently removes that recovery entry.
+
+`GET /v1/backup` takes one owner-serialized snapshot of the workspace, complete
+focus history and recovery records. `POST /v1/backup` accepts
+`{ backup, asCopy?: boolean }`, validates the relation graph and adds missing
+identities without replacing current rows. Foreign-account and explicit-copy
+imports deterministically remap entity, link and database-property identities;
+repeating the same import is idempotent. Workspace writes, session imports and
+recovery imports share one transaction. Metadata requests are capped at 3.5 MB;
+the browser exports/restores immutable private image files separately with
+signature and content-hash checks. Neither route accepts owner credentials or
+uses an elevated Supabase key.
+
+Migrations `20261117112959`, `20261117113951` and `20261117114416` are applied to
+planner-core. `tests/focus-recovery-sql.test.ts` verifies recording links, recovery,
+atomic rollback, portable import and RLS against the complete migration chain.
