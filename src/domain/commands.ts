@@ -87,6 +87,23 @@ export interface SleepInput {
 }
 export type Command =
   | {
+      type: "task.move";
+      id: string;
+      stage: "todo" | "progress" | "hold" | "done";
+      beforeId?: string | null;
+      items?: OrderRevision[];
+      expectedUpdatedAt: string;
+    }
+  | {
+      type: "project.move";
+      id: string;
+      stage: "progress" | "hold" | "done";
+      beforeId?: string | null;
+      items?: OrderRevision[];
+      expectedUpdatedAt: string;
+    }
+  | { type: "task.reorder" | "project.reorder"; items: OrderRevision[] }
+  | {
       type: "database.save";
       id?: string;
       expectedUpdatedAt?: string;
@@ -378,8 +395,83 @@ export function applyCommand(
           ),
         ) + 1
       : 0;
+  const place = <T extends Entity & { listPosition?: number }>(
+    members: T[],
+    command: { id: string; beforeId?: string | null; items?: OrderRevision[] },
+  ) => {
+    if (command.beforeId === undefined) return;
+    if (!command.items)
+      throw new PlannerError("invalid", "Order revisions required.");
+    const ordered = validateOrder(members, command.items);
+    if (command.beforeId === command.id) return;
+    const source = requireItem(ordered, command.id, "Item"),
+      rest = ordered.filter((x) => x.id !== command.id);
+    const at =
+      command.beforeId === null
+        ? rest.length
+        : rest.findIndex((x) => x.id === command.beforeId);
+    if (at < 0)
+      throw new PlannerError(
+        "conflict",
+        "The target changed. Refresh before reordering.",
+      );
+    rest.splice(at, 0, source);
+    rest.forEach((item, index) => {
+      if (item.listPosition !== index) {
+        item.listPosition = index;
+        touch(item);
+      }
+    });
+  };
   let resultId: string | undefined;
   switch (command.type) {
+    case "task.move": {
+      const task = requireItem(state.tasks, command.id, "Task");
+      checkRevision(task, command.expectedUpdatedAt);
+      if (command.stage === "done" && !canCompleteTask(state, task.id))
+        throw new PlannerError(
+          "conditions_unmet",
+          "Meet every completion condition before confirming this task.",
+        );
+      task.completedAt = command.stage === "done" ? now : null;
+      task.workStatus = command.stage === "hold" ? "on_hold" : "active";
+      task.startedAt =
+        command.stage === "todo"
+          ? null
+          : command.stage === "progress"
+            ? task.startedAt || now
+            : task.startedAt;
+      if (!task.completedAt) reopenParent(task.projectId);
+      place(state.tasks, command);
+      touch(task);
+      break;
+    }
+    case "project.move": {
+      const project = requireItem(state.projects, command.id, "Project");
+      checkRevision(project, command.expectedUpdatedAt);
+      if (command.stage === "done" && !canCompleteProject(state, project.id))
+        throw new PlannerError(
+          "tasks_incomplete",
+          "Complete every task before confirming this project.",
+        );
+      project.completedAt = command.stage === "done" ? now : null;
+      project.workStatus = command.stage === "hold" ? "on_hold" : "active";
+      place(state.projects, command);
+      touch(project);
+      break;
+    }
+    case "task.reorder":
+    case "project.reorder": {
+      const members =
+        command.type === "task.reorder" ? state.tasks : state.projects;
+      validateOrder(members, command.items).forEach((item, position) => {
+        if (item.listPosition !== position) {
+          item.listPosition = position;
+          touch(item);
+        }
+      });
+      break;
+    }
     case "database.save": {
       const fields = databaseFieldsSchema.safeParse(command.input.fields);
       if (!fields.success)
@@ -640,6 +732,8 @@ export function applyCommand(
         description: input.description ?? "",
         projectId: input.projectId || null,
         projectPosition: nextProjectPosition(input.projectId || null),
+        listPosition:
+          Math.max(-1, ...state.tasks.map((t) => t.listPosition ?? 0)) + 1,
         completedAt: stage === "done" ? now : null,
       };
       state.tasks.push(task);
@@ -782,6 +876,8 @@ export function applyCommand(
         throw new PlannerError("invalid", "Choose a valid project status.");
       const project = {
         ...entity(),
+        listPosition:
+          Math.max(-1, ...state.projects.map((p) => p.listPosition ?? 0)) + 1,
         tags: normalizeTags(command.input.tags || []),
         workStatus:
           stage === "hold" ? ("on_hold" as const) : ("active" as const),
@@ -1230,6 +1326,18 @@ export function applyCommand(
       (!l.taskId || state.tasks.some((n) => n.id === l.taskId)) &&
       (!l.projectId || state.projects.some((n) => n.id === l.projectId)) &&
       (!l.thoughtId || state.thoughts.some((n) => n.id === l.thoughtId)),
+  );
+  state.tasks.sort(
+    (a, b) =>
+      (a.listPosition ?? 0) - (b.listPosition ?? 0) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id),
+  );
+  state.projects.sort(
+    (a, b) =>
+      (a.listPosition ?? 0) - (b.listPosition ?? 0) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id),
   );
   return { snapshot: state, id: resultId };
 }

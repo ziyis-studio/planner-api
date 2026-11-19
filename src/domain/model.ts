@@ -8,6 +8,7 @@ export interface Entity {
   updatedAt: string;
 }
 export interface Project extends Entity {
+  listPosition?: number;
   tags?: string[];
   workStatus?: "active" | "on_hold";
   icon?: ProjectIconName | null;
@@ -16,6 +17,7 @@ export interface Project extends Entity {
   completedAt: string | null;
 }
 export interface Task extends Entity {
+  listPosition?: number;
   tags?: string[];
   workStatus?: "active" | "on_hold";
   projectPosition?: number;

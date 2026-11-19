@@ -75,7 +75,15 @@ export function fromCloud(value: unknown): Workspace {
       );
     });
   }
-  return parseWorkspace(result);
+  const state = parseWorkspace(result);
+  for (const rows of [state.tasks, state.projects])
+    rows.sort(
+      (a, b) =>
+        (a.listPosition ?? 0) - (b.listPosition ?? 0) ||
+        a.createdAt.localeCompare(b.createdAt) ||
+        a.id.localeCompare(b.id),
+    );
+  return state;
 }
 export interface CloudChange {
   table: string;
@@ -120,7 +128,10 @@ export function changesBetween(
     for (const row of after[property]) {
       const cloud = toCloud(row);
       // Recorded provenance is set by the completion/recovery transaction only.
-      if (table === "time_blocks") {delete cloud.recorded_type; delete cloud.source_session_id;}
+      if (table === "time_blocks") {
+        delete cloud.recorded_type;
+        delete cloud.source_session_id;
+      }
       const old = previous.get(JSON.stringify(keys.map((key) => cloud[key])));
       if (!old) changes.push({ table, action: "insert", row: cloud });
       else if (JSON.stringify(old) !== JSON.stringify(row))

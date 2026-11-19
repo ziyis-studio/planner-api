@@ -21,6 +21,7 @@ const title = z
   .string()
   .refine((value) => value.trim().length > 0, "Empty title");
 const project = entity.extend({
+  listPosition: z.number().int().nonnegative().max(2147483647).optional(),
   tags: z.array(z.string().min(1).max(40)).max(30).optional(),
   workStatus: z.enum(["active", "on_hold"]).optional(),
   icon: z.enum(projectIconNames).nullable().optional(),
@@ -29,6 +30,7 @@ const project = entity.extend({
   completedAt: timestamp.nullable(),
 });
 const task = entity.extend({
+  listPosition: z.number().int().nonnegative().max(2147483647).optional(),
   tags: z.array(z.string().min(1).max(40)).max(30).optional(),
   workStatus: z.enum(["active", "on_hold"]).optional(),
   projectPosition: z.number().int().nonnegative().max(2147483647).optional(),

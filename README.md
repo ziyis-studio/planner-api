@@ -26,7 +26,7 @@ docker run --env-file .env -e HOST=0.0.0.0 -p 3001:3001 planner-api
 
 Deploy this API on its own HTTPS origin. Configure frontend `VITE_API_URL` only after authenticated API checks pass. Set the backend CORS allowlist to the exact frontend origins. The health endpoint is a process liveness check, not a database-readiness guarantee. Keep gateway rate/request limits enabled. No automatic mutation retries: an interrupted response can follow a committed write, so reload before retrying.
 
-The frontend remains independently built and deployed from `planner-core`. Cloud mode sends all workspace reads/writes, profile operations and images to this API. Supabase Auth remains the identity provider; email/OAuth/session refresh and the existing username-login Edge Function are authentication paths, not direct business-data access. Optional local/demo mode remains offline and never acts as a fallback for API failures. Weather is an external public-data integration and remains independent of workspace persistence.
+The frontend remains independently built and deployed from `ONE`. Cloud mode sends all workspace reads/writes, profile operations and images to this API. Supabase Auth remains the identity provider; email/OAuth/session refresh and the existing username-login Edge Function are authentication paths, not direct business-data access. Optional local/demo mode remains offline and never acts as a fallback for API failures. Weather is an external public-data integration and remains independent of workspace persistence.
 
 ## API contract
 
@@ -133,7 +133,7 @@ corepack pnpm typecheck
 corepack pnpm test --maxWorkers=2
 ```
 
-60 tests currently cover HTTP commands, domain completion/reopening, typed records and conflicts, PostgreSQL migrations/ownership, private image policies, activity logs, backup recovery and existing SQL verification scripts. Tests use isolated PGlite and synthetic records, never production-user data. Container configuration is supplied; a container build has not been verified in this environment.
+Automated tests cover HTTP commands, domain completion/reopening, typed records and conflicts, PostgreSQL migrations/ownership, private image policies, activity logs, backup recovery and existing SQL verification scripts. Tests use isolated PGlite and synthetic records, never production-user data. Container configuration is supplied; a container build has not been verified in this environment.
 
 ## Hosting status
 
@@ -192,3 +192,39 @@ single-transaction backup snapshot and import. Existing exports without logs
 remain valid; copied imports deterministically remap entry/target identities.
 The production migration and RLS/rollup/recovery/backup behavior were verified
 using synthetic records inside a rolled-back transaction.
+
+
+### Enhance ONE API boundaries
+
+ONE now ships static frontend assets with a declarative `/api/:path*` rewrite.
+Add the exact frontend origin to `API_ALLOWED_ORIGINS` before deploying it.
+Apply the two additive `enhance_one_ordering_and_attachments` and
+`attachments_image_uploads` migrations, deploy this backend, then deploy ONE.
+Legacy workspace/backup RPCs retain their previous shapes during rollout; this
+backend uses `planner_load_workspace_with_ordering` and
+`planner_export_backup_with_ordering`.
+
+- `task.move` and `project.move`: one atomic status transition with an opaque
+  `expectedUpdatedAt`. Optional `beforeId` and full `items` revisions move and
+  place a card in the same transaction. Completion gates remain authoritative.
+- `task.reorder` / `project.reorder`: a complete revision-checked list of
+  `{id,updatedAt}`. Global `listPosition` survives reload and backup; old backups
+  remain valid. Existing `project.reorderTasks` is still supported.
+- `GET /v1/sessions?day=YYYY-MM-DD&zone=...` and `POST /v1/sessions` replace
+  frontend table access. POST accepts `{timezone,records}` with camel-case
+  session fields; owner identity always comes from the authenticated token.
+- `POST /v1/files` uploads PDF, text, Markdown, CSV, ZIP and modern Office files
+  up to 3 MiB. `GET /v1/files/:key` serves owned downloads as attachments.
+  `POST /v1/files/:key` and `POST /v1/images/:key` restore immutable identities,
+  accepting existing content only when bytes match. All file routes require auth.
+- `POST /v1/auth/username` forwards bounded credentials to the existing
+  rate-limited username Edge Function. Email authentication still uses Supabase Auth.
+- `GET /v1/weather?zone=...` returns current weather for supported zones,
+  cached for five minutes. This public-data route uses a fixed upstream origin.
+- Public `/v1/sample` and its `/restore`, `/import`, `/sessions`, `/activity`
+  operations run bounded stateless sample transactions. They never authenticate
+  an account or access its database; sample data is supplied by the caller.
+
+No elevated credentials are required. Private attachments use the caller's JWT,
+owner-only Storage RLS, validated signatures and immutable names. New storage
+policies include a restrictive owner guard even if another broad policy exists.

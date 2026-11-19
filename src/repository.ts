@@ -1,3 +1,5 @@
+import { sessionRepository } from "./sessions.js";
+import { fileKey, validateFile } from "./attachments.js";
 import { activityRepository } from "./activity.js";
 import { validateImage, validateStoredImage, imageKey } from "./image-store.js";
 import { parseWorkspace } from "./domain/validation.js";
@@ -17,7 +19,14 @@ export interface ApiRepository {
     load(): Promise<string | null>;
     save(username: string): Promise<string>;
   };
+  sessions?: ReturnType<typeof sessionRepository>;
+  files?: {
+    upload(blob: Blob): Promise<string>;
+    get(ref: string): Promise<Blob>;
+    restore(ref: string, blob: Blob): Promise<void>;
+  };
   images?: {
+    restore?(ref: string, blob: Blob): Promise<void>;
     upload(blob: Blob): Promise<string>;
     get(ref: string): Promise<Blob>;
   };
@@ -48,7 +57,7 @@ export function supabaseRepository(url: string, key: string) {
     const ownerId = data.user.id;
     const load = async () => {
       const { data, error } = await client.rpc(
-        "planner_load_workspace_with_databases",
+        "planner_load_workspace_with_ordering",
       );
       if (error)
         throw new ApiError(
@@ -58,8 +67,94 @@ export function supabaseRepository(url: string, key: string) {
         );
       return fromCloud(data);
     };
+    function storedFiles(
+      bucket: string,
+      prefix: string,
+      keyOf: (ref: string) => string | null,
+      validate: (blob: Blob) => Promise<string>,
+    ) {
+      const storage = client.storage.from(bucket);
+      const get = async (ref: string) => {
+        const key = keyOf(ref);
+        if (!key)
+          throw new ApiError(
+            422,
+            "invalid_file",
+            "Invalid attachment reference.",
+          );
+        const { data, error } = await storage.download(`${ownerId}/${key}`);
+        if (error || !data)
+          throw new ApiError(404, "not_found", "Attachment not found.");
+        return data;
+      };
+      const restore = async (ref: string, blob: Blob) => {
+        const key = keyOf(ref),
+          ext = await validate(blob);
+        if (!key || !key.endsWith(`.${ext}`))
+          throw new ApiError(
+            422,
+            "invalid_file",
+            "Invalid attachment reference.",
+          );
+        const same = async (other: Blob) =>
+          Buffer.from(await other.arrayBuffer()).equals(
+            Buffer.from(await blob.arrayBuffer()),
+          );
+        const { data, error } = await storage.download(`${ownerId}/${key}`);
+        if (data) {
+          if (!(await same(data)))
+            throw new ApiError(
+              409,
+              "file_conflict",
+              "This attachment identity has different contents.",
+            );
+          return;
+        }
+        if (
+          error &&
+          !["400", "404"].includes(
+            String((error as any).statusCode ?? (error as any).status),
+          )
+        )
+          throw new ApiError(
+            503,
+            "storage_unavailable",
+            "Attachment could not be checked.",
+          );
+        const { error: write } = await storage.upload(
+          `${ownerId}/${key}`,
+          blob,
+          { upsert: false, contentType: blob.type },
+        );
+        if (write) {
+          const other = await get(ref);
+          if (!(await same(other)))
+            throw new ApiError(
+              409,
+              "file_conflict",
+              "Attachment restore conflict.",
+            );
+        }
+      };
+      return {
+        get,
+        restore,
+        async upload(blob: Blob) {
+          const ref = `${prefix}${crypto.randomUUID()}.${await validate(blob)}`;
+          await restore(ref, blob);
+          return ref;
+        },
+      };
+    }
     return {
       load,
+      sessions: sessionRepository(client, ownerId),
+      files: storedFiles(
+        "planner-attachments",
+        "planner-file://",
+        fileKey,
+        validateFile,
+      ),
       recovery: accountRecovery(client, ownerId, load),
       activity: activityRepository(client),
       profile: {
@@ -94,6 +189,12 @@ export function supabaseRepository(url: string, key: string) {
         },
       },
       images: {
+        restore: storedFiles(
+          "planner-images",
+          "planner-image://",
+          imageKey,
+          validateImage,
+        ).restore,
         async upload(blob) {
           let ext: string;
           try {
