@@ -1,3 +1,4 @@
+import { activityWriteSchema, activityQuerySchema } from "./domain/activity.js";
 import { parseCommand } from "./command-schema.js";
 import { z } from "zod";
 import type { ApiRepository } from "./repository.js";
@@ -124,6 +125,27 @@ export function createApi(
         if (request.method !== "GET")
           throw new ApiError(405, "method_not_allowed", "Use GET.");
         return json({ data: await (await authRepo()).load() });
+      }
+      if (path === "/v1/activity") {
+        const repo = await authRepo();
+        if (!repo.activity)
+          throw new ApiError(503, "unavailable", "Log unavailable.");
+        if (request.method === "GET")
+          return json({
+            data: await repo.activity.list(
+              activityQuerySchema.parse(Object.fromEntries(url.searchParams)),
+            ),
+          });
+        if (request.method === "POST")
+          return json(
+            {
+              data: await repo.activity.append(
+                activityWriteSchema.parse(await body(request)),
+              ),
+            },
+            201,
+          );
+        throw new ApiError(405, "method_not_allowed", "Use GET or POST.");
       }
       if (path === "/v1/backup" || path.startsWith("/v1/recovery")) {
         const repo = await authRepo();

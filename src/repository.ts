@@ -1,3 +1,4 @@
+import { activityRepository } from "./activity.js";
 import { validateImage, validateStoredImage, imageKey } from "./image-store.js";
 import { parseWorkspace } from "./domain/validation.js";
 import { createClient } from "@supabase/supabase-js";
@@ -9,6 +10,7 @@ import { changesBetween, fromCloud } from "./cloud-mapping.js";
 import { accountRecovery } from "./account-recovery.js";
 import { recoveryPatch } from "./domain/recovery.js";
 export interface ApiRepository {
+  activity?: ReturnType<typeof activityRepository>;
   recovery?: ReturnType<typeof accountRecovery>;
   load(): Promise<Workspace>;
   profile?: {
@@ -59,6 +61,7 @@ export function supabaseRepository(url: string, key: string) {
     return {
       load,
       recovery: accountRecovery(client, ownerId, load),
+      activity: activityRepository(client),
       profile: {
         async load() {
           const { data, error } = await client

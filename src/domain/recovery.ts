@@ -1,3 +1,5 @@
+import { activitySchema } from "./activity.js";
+import type { ActivityLog } from "./activity.js";
 import type { Workspace } from "./model.js";
 import { PlannerError } from "./model.js";
 import { parseWorkspace } from "./validation.js";
@@ -217,6 +219,7 @@ export type Backup = {
   workspace: Workspace;
   sessions: z.infer<typeof sessionSchema>[];
   trash: RecoveryEntry[];
+  activity?: ActivityLog[];
 };
 export function parseBackup(raw: unknown): Backup {
   const base = z
@@ -227,6 +230,7 @@ export function parseBackup(raw: unknown): Backup {
       ownerId: z.string().max(100).optional(),
       exportedAt: z.string().optional(),
       workspace: z.unknown(),
+      activity: z.array(activitySchema).max(20000).default([]),
       sessions: z.array(sessionSchema).max(20000).default([]),
       trash: z
         .array(
@@ -248,6 +252,7 @@ export function parseBackup(raw: unknown): Backup {
     .parse(raw);
   return {
     sessions: base.sessions,
+    activity: base.activity,
     trash: base.trash,
     app: "ONE",
     version: 2,
@@ -256,6 +261,24 @@ export function parseBackup(raw: unknown): Backup {
     exportedAt: base.exportedAt ?? new Date().toISOString(),
     workspace: parseWorkspace(base.workspace),
   };
+}
+export async function backupCopyId(
+  owner: string,
+  backupId: string,
+  id: string,
+) {
+  const hash = new Uint8Array(
+    await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(owner + ":" + backupId + ":" + id),
+    ),
+  );
+  hash[6] = (hash[6] & 15) | 64;
+  hash[8] = (hash[8] & 63) | 128;
+  const h = [...hash.slice(0, 16)]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 export async function copyBackup(
   source: Backup,
@@ -277,6 +300,7 @@ export async function copyBackup(
     "databaseId",
     "timeBlockId",
     "sourceSessionId",
+    "target_id",
     "task_id",
     "task_snapshot_id",
     "time_block_id",
@@ -301,19 +325,7 @@ export async function copyBackup(
   ids.delete(source.id);
   const map: Record<string, string> = {};
   for (const id of ids) {
-    const hash = new Uint8Array(
-      await crypto.subtle.digest(
-        "SHA-256",
-        new TextEncoder().encode(owner + ":" + source.id + ":" + id),
-      ),
-    );
-    hash[6] = (hash[6] & 15) | 64;
-    hash[8] = (hash[8] & 63) | 128;
-    const h = [...hash.slice(0, 16)]
-      .map((v) => v.toString(16).padStart(2, "0"))
-      .join("");
-    map[id] =
-      `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+    map[id] = await backupCopyId(owner, source.id, id);
   }
   function remap(v: unknown): unknown {
     if (Array.isArray(v)) return v.map(remap);

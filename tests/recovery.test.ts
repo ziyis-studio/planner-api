@@ -114,6 +114,15 @@ test("portable copies remap references, database property keys and recovery patc
     exportedAt: new Date().toISOString(),
     workspace: after,
     sessions: [],
+    activity: [
+      {
+        id: crypto.randomUUID(),
+        target_kind: "task",
+        target_id: state.tasks[0].id,
+        body: "Task progress",
+        created_at: new Date().toISOString(),
+      },
+    ],
     trash: [
       {
         id: crypto.randomUUID(),
@@ -136,6 +145,9 @@ test("portable copies remap references, database property keys and recovery patc
     backup.workspace,
   );
   expect(parsed.workspace).toEqual(after);
+  expect(backup.activity?.[0].target_id).toBe(idMap[state.tasks[0].id]);
+  expect(backup.activity?.[0].id).not.toBe(parsed.activity?.[0].id);
+  expect(backup.activity?.[0].body).toBe("Task progress");
 });
 test("legacy exports validate their entire relation graph before importing", () => {
   const { state, t } = fixture();

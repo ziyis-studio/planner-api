@@ -133,7 +133,7 @@ corepack pnpm typecheck
 corepack pnpm test --maxWorkers=2
 ```
 
-46 tests currently cover HTTP commands, domain completion/reopening, typed records and conflicts, PostgreSQL migrations/ownership, private image policies and existing SQL verification scripts. Tests use isolated PGlite and synthetic records, never production data. Container configuration is supplied; a container build has not been verified in this environment.
+60 tests currently cover HTTP commands, domain completion/reopening, typed records and conflicts, PostgreSQL migrations/ownership, private image policies, activity logs, backup recovery and existing SQL verification scripts. Tests use isolated PGlite and synthetic records, never production-user data. Container configuration is supplied; a container build has not been verified in this environment.
 
 ## Hosting status
 
@@ -166,3 +166,29 @@ uses an elevated Supabase key.
 Migrations `20261117112959`, `20261117113951` and `20261117114416` are applied to
 planner-core. `tests/focus-recovery-sql.test.ts` verifies recording links, recovery,
 atomic rollback, portable import and RLS against the complete migration chain.
+
+### Task and project logs
+
+`GET /v1/activity?kind=task|project&id=<uuid>` returns `{items,next}` with up to
+50 entries, newest first. Supply both `beforeAt` and `beforeId` from `next` to
+page older records. Project feeds include logs of tasks currently assigned to
+that project. Each entry retains `target_kind` and `target_id` for its source.
+
+`POST /v1/activity` accepts `{id,kind,targetId,body}`. The caller supplies a stable
+entry UUID so retries are idempotent; reusing an identity with different content
+returns 409. Bodies are plain text, trimmed and limited to 10,000 characters.
+The target must belong to the authenticated owner. No owner/author field is
+accepted. These private logs are append-only; no edit/delete route is exposed.
+
+The `entity_logs` table has owner RLS and owner-scoped target foreign keys. Logs
+retain their original target identity when an item enters Trash, so restoring
+the item restores its feed. Orphaned history stays private and is included in
+backups. Project rollup follows current task membership. Log comments do not
+modify task/project revisions. Existing note links use ordinary guarded
+`note.save` commands, preserving all other note targets.
+
+Migration `20261119075257_task_project_activity.sql` also adds activity to the
+single-transaction backup snapshot and import. Existing exports without logs
+remain valid; copied imports deterministically remap entry/target identities.
+The production migration and RLS/rollup/recovery/backup behavior were verified
+using synthetic records inside a rolled-back transaction.

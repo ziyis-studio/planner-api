@@ -84,12 +84,16 @@ export function accountRecovery(
       );
       const before = await load(),
         after = mergeWorkspace(before, backup.workspace);
-      const { error } = await client.rpc("planner_import_backup", {
-        changes: changesBetween(before, after),
-        sessions: backup.sessions,
-        trash: backup.trash,
-        recorded_blocks: after.timeBlocks.filter((b) => b.sourceSessionId),
-      });
+      const { error } = await client.rpc(
+        "planner_import_backup_with_activity",
+        {
+          changes: changesBetween(before, after),
+          sessions: backup.sessions,
+          trash: backup.trash,
+          activity: backup.activity || [],
+          recorded_blocks: after.timeBlocks.filter((b) => b.sourceSessionId),
+        },
+      );
       fail(error);
       return { snapshot: await load(), idMap };
     },
