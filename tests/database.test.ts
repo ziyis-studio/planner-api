@@ -693,3 +693,41 @@ test("cloud transaction round-trip preserves manual gates, many-to-many links, h
   ).rejects.toThrow("permission denied");
   await db.exec("reset role;");
 }, 20_000);
+
+test("global ordering survives the new RPC while old workspace and backup shapes remain compatible", async () => {
+  const user = "96500000-0000-4000-8000-000000000051";
+  await db.exec(
+    `reset role;insert into auth.users(id,email) values ('${user}','ordering@example.invalid');set role authenticated;select set_config('request.jwt.claim.sub','${user}',false);`,
+  );
+  const a = (await execute({ type: "project.create", input: { title: "A" } }))
+    .id;
+  const b = (await execute({ type: "project.create", input: { title: "B" } }))
+    .id;
+  const current = await load();
+  await execute({
+    type: "project.reorder",
+    items: [b, a].map((id) => {
+      const item = current.projects.find((p) => p.id === id)!;
+      return { id, updatedAt: item.updatedAt };
+    }),
+  });
+  const ordered = (
+    await db.query<{ data: any }>(
+      "select public.planner_load_workspace_with_ordering() as data",
+    )
+  ).rows[0].data;
+  expect(ordered.projects.map((p: any) => p.id)).toEqual([b, a]);
+  const legacy = (
+    await db.query<{ data: any }>(
+      "select public.planner_load_workspace_with_databases() as data",
+    )
+  ).rows[0].data;
+  expect(legacy.projects.every((p: any) => !("list_position" in p))).toBe(true);
+  const backup = (
+    await db.query<{ data: any }>(
+      "select public.planner_export_backup_with_ordering() as data",
+    )
+  ).rows[0].data;
+  expect(backup.workspace.projects[0].id).toBe(b);
+  await db.exec("reset role");
+});

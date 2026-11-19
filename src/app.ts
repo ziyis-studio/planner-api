@@ -1,3 +1,18 @@
+import { currentWeather } from "./weather.js";
+import { pomodoroTimeBlock } from "./sample-sessions.js";
+import { activitySchema } from "./domain/activity.js";
+import { createDemo } from "./sample.js";
+import { parseWorkspace } from "./domain/validation.js";
+import { applyCommand } from "./domain/commands.js";
+import {
+  recoveryPatch,
+  restorePatch,
+  parseBackup,
+  copyBackup,
+  mergeWorkspace,
+} from "./domain/recovery.js";
+import { isTimeZone } from "./domain/time.js";
+import { sessionBatch, sessionQuery } from "./sessions.js";
 import { activityWriteSchema, activityQuerySchema } from "./domain/activity.js";
 import { parseCommand } from "./command-schema.js";
 import { z } from "zod";
@@ -74,6 +89,10 @@ async function body(request: Request, limit = 1_048_576) {
 export function createApi(
   authenticate: (token: string) => Promise<ApiRepository>,
   allowedOrigins: string[] = [],
+  usernameLogin?: (input: {
+    username: string;
+    password: string;
+  }) => Promise<{ status: number; data: unknown }>,
 ) {
   return async (request: Request): Promise<Response> => {
     const headers = new Headers({
@@ -109,6 +128,215 @@ export function createApi(
         path = url.pathname.replace(/\/$/, "");
       if (path === "/v1/health" && request.method === "GET")
         return json({ status: "ok", version: 1 });
+      if (path === "/v1/weather") {
+        if (request.method !== "GET")
+          throw new ApiError(405, "method_not_allowed", "Use GET.");
+        const zone = z
+          .string()
+          .max(100)
+          .refine(isTimeZone)
+          .parse(url.searchParams.get("zone"));
+        try {
+          return json({ data: await currentWeather(zone) });
+        } catch {
+          throw new ApiError(
+            503,
+            "weather_unavailable",
+            "Weather unavailable.",
+          );
+        }
+      }
+      if (path === "/v1/auth/username") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        if (!usernameLogin)
+          throw new ApiError(503, "unavailable", "Sign in unavailable.");
+        const input = z
+          .strictObject({
+            username: z.string().trim().min(1).max(32),
+            password: z.string().min(1).max(1024),
+          })
+          .parse(await body(request, 4096));
+        const result = await usernameLogin(input);
+        return json(result.data, result.status);
+      }
+      // Stateless sample operations never authenticate or access a user's database.
+      if (path === "/v1/sample") {
+        if (request.method === "GET") {
+          const zone = z
+            .string()
+            .refine(isTimeZone)
+            .parse(url.searchParams.get("zone"));
+          return json({ data: createDemo(zone) });
+        }
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use GET or POST.");
+        const input = z
+          .strictObject({ workspace: z.unknown(), command: z.unknown() })
+          .parse(await body(request, 3_500_000));
+        const before = parseWorkspace(input.workspace),
+          command = parseCommand(input.command);
+        const result = applyCommand(before, command);
+        const patch = command.type.endsWith(".delete")
+          ? recoveryPatch(before, result.snapshot)
+          : null;
+        return json({ data: { ...result, patch } });
+      }
+      if (path === "/v1/sample/sessions") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({
+            workspace: z.unknown(),
+            timezone: z.string(),
+            records: z.unknown(),
+          })
+          .parse(await body(request, 3_500_000));
+        const snapshot = parseWorkspace(input.workspace),
+          batch = sessionBatch.parse({
+            timezone: input.timezone,
+            records: input.records,
+          });
+        for (const record of batch.records) {
+          if (
+            snapshot.timeBlocks.some(
+              (b) => b.id === record.id || b.sourceSessionId === record.id,
+            )
+          )
+            continue;
+          snapshot.timeBlocks.push(pomodoroTimeBlock(record, batch.timezone));
+          if (
+            record.mode === "focus" &&
+            record.taskId &&
+            snapshot.tasks.some((t) => t.id === record.taskId)
+          )
+            snapshot.blockTaskLinks.push({
+              timeBlockId: record.id,
+              taskId: record.taskId,
+            });
+        }
+        return json({ data: { snapshot } });
+      }
+      if (path === "/v1/sample/activity") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({
+            workspace: z.unknown(),
+            items: z.array(activitySchema).max(20000),
+            entry: activityWriteSchema,
+          })
+          .parse(await body(request, 3_500_000));
+        const workspace = parseWorkspace(input.workspace),
+          entry = input.entry;
+        const targets =
+          entry.kind === "task" ? workspace.tasks : workspace.projects;
+        if (!targets.some((t) => t.id === entry.targetId))
+          throw new ApiError(404, "not_found", "Target not found.");
+        const same = input.items.find((row) => row.id === entry.id);
+        if (
+          same &&
+          (same.body !== entry.body ||
+            same.target_id !== entry.targetId ||
+            same.target_kind !== entry.kind)
+        )
+          throw new ApiError(
+            409,
+            "conflict",
+            "This log identity already has different contents.",
+          );
+        return json({
+          data: same || {
+            id: entry.id,
+            target_kind: entry.kind,
+            target_id: entry.targetId,
+            body: entry.body,
+            created_at: new Date().toISOString(),
+          },
+        });
+      }
+      if (path === "/v1/sample/restore" || path === "/v1/sample/import") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        if (path.endsWith("/restore")) {
+          const input = z
+            .strictObject({ workspace: z.unknown(), patch: z.unknown() })
+            .parse(await body(request, 3_500_000));
+          // Reuse backup validation for inverse patches instead of trusting device storage.
+          const shell = {
+            app: "ONE",
+            version: 2,
+            id: crypto.randomUUID(),
+            ownerId: "demo",
+            exportedAt: new Date().toISOString(),
+            workspace: input.workspace,
+            sessions: [],
+            trash: [
+              {
+                id: crypto.randomUUID(),
+                kind: "sample",
+                title: "Sample",
+                deletedAt: new Date().toISOString(),
+                restoredAt: null,
+                patch: input.patch,
+              },
+            ],
+          };
+          const backup = parseBackup(shell);
+          return json({
+            data: {
+              snapshot: restorePatch(backup.workspace, backup.trash[0].patch),
+            },
+          });
+        }
+        const input = z
+          .strictObject({
+            workspace: z.unknown(),
+            backup: z.unknown(),
+            asCopy: z.boolean().optional(),
+          })
+          .parse(await body(request, 3_500_000));
+        const { backup, idMap } = await copyBackup(
+          parseBackup(input.backup),
+          "demo",
+          input.asCopy ?? false,
+        );
+        const snapshot = mergeWorkspace(
+          parseWorkspace(input.workspace),
+          backup.workspace,
+        );
+        for (const record of backup.sessions) {
+          if (
+            !record.time_block_id ||
+            snapshot.timeBlocks.some((b) => b.id === record.time_block_id)
+          )
+            continue;
+          snapshot.timeBlocks.push({
+            ...pomodoroTimeBlock(
+              {
+                id: record.id,
+                mode: record.mode,
+                startedAt: Date.parse(record.started_at),
+                completedAt: Date.parse(record.completed_at),
+                durationSeconds: record.duration_seconds,
+                taskId: record.task_id,
+                taskTitle: record.task_title,
+              },
+              record.timezone,
+            ),
+            id: record.time_block_id,
+          });
+          if (
+            record.task_id &&
+            snapshot.tasks.some((t) => t.id === record.task_id)
+          )
+            snapshot.blockTaskLinks.push({
+              timeBlockId: record.time_block_id,
+              taskId: record.task_id,
+            });
+        }
+        return json({ data: { snapshot, backup, idMap } });
+      }
       const authRepo = async () => {
         const token = /^Bearer (\S+)$/i.exec(
           request.headers.get("authorization") ?? "",
@@ -125,6 +353,24 @@ export function createApi(
         if (request.method !== "GET")
           throw new ApiError(405, "method_not_allowed", "Use GET.");
         return json({ data: await (await authRepo()).load() });
+      }
+      if (path === "/v1/sessions") {
+        const repo = await authRepo();
+        if (!repo.sessions)
+          throw new ApiError(503, "unavailable", "Focus records unavailable.");
+        if (request.method === "GET")
+          return json({
+            data: await repo.sessions.list(
+              sessionQuery.parse(Object.fromEntries(url.searchParams)),
+            ),
+          });
+        if (request.method === "POST")
+          return json({
+            data: await repo.sessions.save(
+              sessionBatch.parse(await body(request)),
+            ),
+          });
+        throw new ApiError(405, "method_not_allowed", "Use GET or POST.");
       }
       if (path === "/v1/activity") {
         const repo = await authRepo();
@@ -260,18 +506,27 @@ export function createApi(
         }
         throw new ApiError(405, "method_not_allowed", "Use GET or PATCH.");
       }
-      if (path === "/v1/images" || path.startsWith("/v1/images/")) {
+      if (/^\/v1\/(images|files)(\/|$)/.test(path)) {
         const repo = await authRepo();
-        if (!repo.images)
+        const images = path.startsWith("/v1/images");
+        const store = images ? repo.images : repo.files;
+        const base = images ? "/v1/images" : "/v1/files";
+        const prefix = images ? "planner-image://" : "planner-file://";
+        if (!store)
           throw new ApiError(503, "unavailable", "Images unavailable.");
-        if (request.method === "GET" && path.startsWith("/v1/images/")) {
-          const blob = await repo.images.get(
-            `planner-image://${path.slice("/v1/images/".length)}`,
+        if (request.method === "GET" && path.startsWith(base + "/")) {
+          const blob = await store.get(prefix + path.slice(base.length + 1));
+          headers.set(
+            "Content-Type",
+            images ? blob.type : "application/octet-stream",
           );
-          headers.set("Content-Type", blob.type);
+          if (!images) headers.set("Content-Disposition", "attachment");
           return new Response(blob, { headers });
         }
-        if (request.method === "POST" && path === "/v1/images") {
+        if (
+          request.method === "POST" &&
+          (path === base || path.startsWith(base + "/"))
+        ) {
           const reader = request.body?.getReader();
           if (!reader)
             throw new ApiError(400, "invalid_image", "Image required.");
@@ -281,7 +536,7 @@ export function createApi(
             const { done, value } = await reader.read();
             if (done) break;
             size += value.length;
-            if (size > 5 * 1024 * 1024) {
+            if (size > (images ? 5 : 3) * 1024 * 1024) {
               await reader.cancel();
               throw new ApiError(
                 413,
@@ -294,7 +549,13 @@ export function createApi(
           const blob = new Blob([Buffer.concat(chunks)], {
             type: request.headers.get("content-type") ?? "",
           });
-          return json({ data: { ref: await repo.images.upload(blob) } }, 201);
+          if (path !== base) {
+            if (!store.restore)
+              throw new ApiError(503, "unavailable", "Restore unavailable.");
+            await store.restore(prefix + path.slice(base.length + 1), blob);
+            return json({ data: { restored: true } });
+          }
+          return json({ data: { ref: await store.upload(blob) } }, 201);
         }
         throw new ApiError(405, "method_not_allowed", "Method not allowed.");
       }

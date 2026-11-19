@@ -13,5 +13,21 @@ export function runtimeApi() {
     API_ALLOWED_ORIGINS.split(",")
       .map((v) => v.trim())
       .filter(Boolean),
+    async (input) => {
+      const response = await fetch(
+        new URL("/functions/v1/username-login", SUPABASE_URL),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify(input),
+          signal: AbortSignal.timeout(15000),
+          redirect: "error",
+        },
+      );
+      return { status: response.status, data: await response.json() };
+    },
   );
 }

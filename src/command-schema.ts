@@ -49,6 +49,32 @@ const habit = object({
 const save = { id: id.optional(), expectedUpdatedAt: revision.optional() };
 const edit = { id, expectedUpdatedAt: revision.optional() };
 const schemas = {
+  "task.move": object({
+    id,
+    stage: z.enum(["todo", "progress", "hold", "done"]),
+    beforeId: id.nullable().optional(),
+    items: z
+      .array(object({ id, updatedAt: revision }))
+      .max(1000)
+      .optional(),
+    expectedUpdatedAt: revision,
+  }),
+  "project.move": object({
+    id,
+    stage: z.enum(["progress", "hold", "done"]),
+    beforeId: id.nullable().optional(),
+    items: z
+      .array(object({ id, updatedAt: revision }))
+      .max(1000)
+      .optional(),
+    expectedUpdatedAt: revision,
+  }),
+  "task.reorder": object({
+    items: z.array(object({ id, updatedAt: revision })).max(1000),
+  }),
+  "project.reorder": object({
+    items: z.array(object({ id, updatedAt: revision })).max(1000),
+  }),
   "task.create": object({
     input: task.extend({
       initialStage: z.enum(["todo", "progress", "hold", "done"]).optional(),
