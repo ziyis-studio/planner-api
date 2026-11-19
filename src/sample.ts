@@ -1,8 +1,8 @@
-import { emptyWorkspace } from "./domain/model";
-import { applyCommand } from "./domain/commands";
-import type { Command } from "./domain/commands";
-import type { Workspace } from "./domain/model";
-import { addDays, dayKey, timeKey, wallTime } from "./domain/time";
+import { emptyWorkspace } from "./domain/model.js";
+import { applyCommand } from "./domain/commands.js";
+import type { Command } from "./domain/commands.js";
+import type { Workspace } from "./domain/model.js";
+import { addDays, dayKey, timeKey, wallTime } from "./domain/time.js";
 
 export function createDemo(zone: string): Workspace {
   let state = emptyWorkspace();
