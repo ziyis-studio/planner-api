@@ -1,4 +1,5 @@
 import { currentWeather } from "./weather.js";
+import { insightQuery, workspaceInsights } from "./insights.js";
 import { pomodoroTimeBlock } from "./sample-sessions.js";
 import { activitySchema } from "./domain/activity.js";
 import { createDemo } from "./sample.js";
@@ -182,6 +183,16 @@ export function createApi(
           : null;
         return json({ data: { ...result, patch } });
       }
+      if (path === "/v1/sample/insights") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({ workspace: z.unknown(), query: insightQuery })
+          .parse(await body(request, 3_500_000));
+        return json({
+          data: workspaceInsights(parseWorkspace(input.workspace), input.query),
+        });
+      }
       if (path === "/v1/sample/sessions") {
         if (request.method !== "POST")
           throw new ApiError(405, "method_not_allowed", "Use POST.");
@@ -353,6 +364,13 @@ export function createApi(
         if (request.method !== "GET")
           throw new ApiError(405, "method_not_allowed", "Use GET.");
         return json({ data: await (await authRepo()).load() });
+      }
+      if (path === "/v1/insights") {
+        const repo = await authRepo();
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const query = insightQuery.parse(await body(request));
+        return json({ data: workspaceInsights(await repo.load(), query) });
       }
       if (path === "/v1/sessions") {
         const repo = await authRepo();

@@ -221,7 +221,13 @@ backend uses `planner_load_workspace_with_ordering` and
   rate-limited username Edge Function. Email authentication still uses Supabase Auth.
 - `GET /v1/weather?zone=...` returns current weather for supported zones,
   cached for five minutes. This public-data route uses a fixed upstream origin.
-- Public `/v1/sample` and its `/restore`, `/import`, `/sessions`, `/activity`
+- `POST /v1/insights` accepts `{kind:"sleep"|"habits",from,to,zone}` for up to
+  366 calendar dates. It derives statistics from the caller's workspace without
+  writing records. Habit counts follow planned dates, including moved and
+  unmaterialized occurrences. Streaks skip rest days and leave unfinished today
+  open. Sleep groups by wake-up date; rhythm uses the longest period each day
+  and aligns bedtimes across midnight. Missing days remain missing.
+- Public `/v1/sample` and its `/restore`, `/import`, `/sessions`, `/activity`, `/insights`
   operations run bounded stateless sample transactions. They never authenticate
   an account or access its database; sample data is supplied by the caller.
 

@@ -25,7 +25,9 @@ export const activityQuerySchema = z
     beforeAt: z.iso.datetime({ offset: true }).optional(),
     beforeId: z.uuid().optional(),
   })
-  .strict()
+  // Hosting rewrites may attach transport query fields. Only these validated
+  // fields reach the owner-scoped RPC; unrelated query metadata is ignored.
+  .strip()
   .refine(
     (q) => !!q.beforeAt === !!q.beforeId,
     "A complete cursor is required.",

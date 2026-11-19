@@ -19,13 +19,26 @@ function check(error: { code?: string } | null) {
     );
 }
 function entry(row: any) {
-  return activitySchema.parse({
+  // Postgres and PostgREST timestamp spellings differ. Preserve fractional
+  // precision because the exact timestamp is also the pagination cursor.
+  const timestamp =
+    typeof row?.created_at === "string"
+      ? row.created_at.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")
+      : row?.created_at;
+  const parsed = activitySchema.safeParse({
     id: row.id,
     target_kind: row.target_kind,
     target_id: row.target_id,
     body: row.body,
-    created_at: row.created_at,
+    created_at: timestamp,
   });
+  if (!parsed.success)
+    throw new ApiError(
+      503,
+      "activity_response_invalid",
+      "The log could not be read. Please retry; saved entries are kept.",
+    );
+  return parsed.data;
 }
 export function activityRepository(client: SupabaseClient) {
   return {
