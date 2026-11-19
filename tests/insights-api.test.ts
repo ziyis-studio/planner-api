@@ -4,6 +4,74 @@ import { applyCommand } from "../src/domain/commands";
 import { habitInsights, sleepInsights, insightQuery } from "../src/insights";
 import { createApi } from "../src/app";
 
+test("clock averages wrap around the full day, including noon, and do not invent an average for opposing times", () => {
+  const stamp = {
+    createdAt: "2026-11-20T00:00:00Z",
+    updatedAt: "2026-11-20T00:00:00Z",
+    timeZone: "UTC",
+    note: "",
+    awakeMinutes: 0,
+  };
+  const cases = [
+    {
+      times: [
+        ["2026-11-18T03:50:00Z", "2026-11-18T11:50:00Z"],
+        ["2026-11-19T04:10:00Z", "2026-11-19T12:10:00Z"],
+      ],
+      bedtime: "04:00",
+      wakeTime: "12:00",
+    },
+    {
+      times: [
+        ["2026-11-18T11:50:00Z", "2026-11-18T19:50:00Z"],
+        ["2026-11-19T12:10:00Z", "2026-11-19T20:10:00Z"],
+      ],
+      bedtime: "12:00",
+      wakeTime: "20:00",
+    },
+    {
+      times: [
+        ["2026-11-17T23:50:00Z", "2026-11-18T07:50:00Z"],
+        ["2026-11-19T00:10:00Z", "2026-11-19T08:10:00Z"],
+      ],
+      bedtime: "00:00",
+      wakeTime: "08:00",
+    },
+  ];
+  for (const c of cases) {
+    const state = emptyWorkspace();
+    state.sleepRecords = c.times.map(([startsAt, endsAt]) => ({
+      ...stamp,
+      id: crypto.randomUUID(),
+      startsAt,
+      endsAt,
+    }));
+    expect(
+      sleepInsights(state, "2026-11-01", "2026-11-30", "2026-11-20", "UTC")
+        .rhythm,
+    ).toMatchObject({
+      bedtime: c.bedtime,
+      wakeTime: c.wakeTime,
+      variation: 10,
+      samples: 2,
+    });
+  }
+  const state = emptyWorkspace();
+  state.sleepRecords = [
+    ["2026-11-18T00:00:00Z", "2026-11-18T08:00:00Z"],
+    ["2026-11-19T12:00:00Z", "2026-11-19T20:00:00Z"],
+  ].map(([startsAt, endsAt]) => ({
+    ...stamp,
+    id: crypto.randomUUID(),
+    startsAt,
+    endsAt,
+  }));
+  expect(
+    sleepInsights(state, "2026-11-01", "2026-11-30", "2026-11-20", "UTC")
+      .rhythm,
+  ).toBeNull();
+});
+
 test("habit insights count planned dates, skip rest days in streaks and leave today's unfinished streak open", () => {
   let state = emptyWorkspace();
   const run = (command: Parameters<typeof applyCommand>[1]) => {

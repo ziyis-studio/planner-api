@@ -226,7 +226,7 @@ backend uses `planner_load_workspace_with_ordering` and
   writing records. Habit counts follow planned dates, including moved and
   unmaterialized occurrences. Streaks skip rest days and leave unfinished today
   open. Sleep groups by wake-up date; rhythm uses the longest period each day
-  and aligns bedtimes across midnight. Missing days remain missing.
+  and uses circular 24-hour means for bedtime and wake-up, including midnight and noon. Opposing clock times have no single usual window. Missing days remain missing.
 - Public `/v1/sample` and its `/restore`, `/import`, `/sessions`, `/activity`, `/insights`
   operations run bounded stateless sample transactions. They never authenticate
   an account or access its database; sample data is supplied by the caller.
