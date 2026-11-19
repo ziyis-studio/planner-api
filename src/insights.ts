@@ -169,6 +169,15 @@ const clock = (minute: number) => {
     String(n % 60).padStart(2, "0")
   );
 };
+function clockMean(values: number[]) {
+  const angles = values.map((value) => (value / 1440) * Math.PI * 2);
+  const sin = angles.reduce((sum, angle) => sum + Math.sin(angle), 0);
+  const cos = angles.reduce((sum, angle) => sum + Math.cos(angle), 0);
+  // Opposing or evenly distributed times have no meaningful single mean.
+  if (!values.length || Math.hypot(sin, cos) / values.length < 1e-6)
+    return null;
+  return ((Math.atan2(sin, cos) * 1440) / (Math.PI * 2) + 1440) % 1440;
+}
 export function sleepInsights(
   workspace: Workspace,
   from: string,
@@ -210,15 +219,10 @@ export function sleepInsights(
           minutesBetween(a.startsAt, a.endsAt),
       )[0],
   );
-  // Align bedtimes around noon so 23:30 and 00:30 average to midnight.
-  const beds = primary.map((r) => {
-    const m = minuteOfDay(r.startsAt, zone);
-    return m < 720 ? m + 1440 : m;
-  });
-  const wakes = primary.map((r) => {
-    const m = minuteOfDay(r.endsAt, zone);
-    return m < 720 ? m + 1440 : m;
-  });
+  const beds = primary.map((r) => minuteOfDay(r.startsAt, zone));
+  const wakes = primary.map((r) => minuteOfDay(r.endsAt, zone));
+  const bedtime = clockMean(beds),
+    wakeTime = clockMean(wakes);
   const mean = (xs: number[]) => xs.reduce((n, x) => n + x, 0) / xs.length;
   const recent = days.at(-1),
     records = recent
@@ -242,16 +246,21 @@ export function sleepInsights(
           1,
     shortest: days.length ? Math.min(...days.map((d) => d.minutes)) : null,
     longest: days.length ? Math.max(...days.map((d) => d.minutes)) : null,
-    rhythm: primary.length
-      ? {
-          bedtime: clock(mean(beds)),
-          wakeTime: clock(mean(wakes)),
-          variation: Math.round(
-            mean(beds.map((v) => Math.abs(v - mean(beds)))),
-          ),
-          samples: primary.length,
-        }
-      : null,
+    rhythm:
+      bedtime !== null && wakeTime !== null
+        ? {
+            bedtime: clock(bedtime),
+            wakeTime: clock(wakeTime),
+            variation: Math.round(
+              mean(
+                beds.map((v) =>
+                  Math.min(Math.abs(v - bedtime), 1440 - Math.abs(v - bedtime)),
+                ),
+              ),
+            ),
+            samples: primary.length,
+          }
+        : null,
     recent: recent
       ? {
           ...recent,
