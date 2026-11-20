@@ -539,7 +539,12 @@ export function createApi(
         const repo = await authRepo();
         if (request.method !== "GET")
           throw new ApiError(405, "method_not_allowed", "Use GET.");
-        const query = mealQuery.parse(Object.fromEntries(url.searchParams));
+        // Rewrites can append routing metadata (for example `path`). Only the
+        // public meal parameters belong to this strict application schema.
+        const query = mealQuery.parse({
+          date: url.searchParams.get("date"),
+          zone: url.searchParams.get("zone"),
+        });
         return json({ data: mealDay(await repo.load(), query) });
       }
       if (/^\/v1\/(images|files)(\/|$)/.test(path)) {

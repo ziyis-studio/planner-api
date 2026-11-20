@@ -54,3 +54,70 @@ test("standalone and Vercel rewrite transports deliver validated commands and re
     );
   }
 });
+
+test("Vercel route metadata does not invalidate authenticated meal query parameters", async () => {
+  const state = applyCommand(emptyWorkspace(), {
+    type: "meal.save",
+    input: {
+      kind: "lunch",
+      description: "Rice and vegetables",
+      ateAt: "2026-11-19T04:00:00Z",
+      timeZone: "Asia/Kuala_Lumpur",
+      calories: 525,
+    },
+  }).snapshot;
+  const app = createApi(async (token) => {
+    expect(token).toBe("fixture");
+    return {
+      load: async () => state,
+      execute: async (command) => applyCommand(state, command),
+      sessions: {
+        list: async (query: { day: string; zone: string }) => {
+          expect(query).toEqual({
+            day: "2026-11-19",
+            zone: "Asia/Kuala_Lumpur",
+          });
+          return [];
+        },
+        save: async () => [],
+      },
+    };
+  });
+  const server = createServer(httpHandler(app, true));
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("Missing address");
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    for (const path of [
+      "/v1/meals?path=meals",
+      "/api/index?route=/v1/meals&path=meals",
+    ]) {
+      const response = await fetch(
+        `${base}${path}&date=2026-11-19&zone=Asia%2FKuala_Lumpur`,
+        { headers: { Authorization: "Bearer fixture" } },
+      );
+      expect(response.status).toBe(200);
+      const value = (await response.json()).data;
+      expect(value.meals).toHaveLength(1);
+      expect(value.totals.calories.amount).toBe(525);
+    }
+    const sessions = await fetch(
+      `${base}/api/index?route=/v1/sessions&path=sessions&day=2026-11-19&zone=Asia%2FKuala_Lumpur`,
+      { headers: { Authorization: "Bearer fixture" } },
+    );
+    expect(sessions.status).toBe(200);
+    expect((await sessions.json()).data).toEqual([]);
+    const invalid = await fetch(
+      `${base}/api/index?route=/v1/meals&path=meals&date=bad&zone=Asia%2FKuala_Lumpur`,
+      { headers: { Authorization: "Bearer fixture" } },
+    );
+    expect(invalid.status).toBe(422);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
