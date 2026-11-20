@@ -18,6 +18,8 @@ export function httpHandler(
         const route = url.searchParams.get("route");
         if (route?.startsWith("/v1/")) url.pathname = route;
         url.searchParams.delete("route");
+        // Vercel's :path* rewrite capture is transport metadata, not an API filter.
+        url.searchParams.delete("path");
       }
       const init: RequestInit & { duplex?: "half" } = {
         method: req.method,
