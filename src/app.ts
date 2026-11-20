@@ -1,3 +1,4 @@
+import { mealQuery, mealDay } from "./meals.js";
 import { currentWeather } from "./weather.js";
 import { insightQuery, workspaceInsights } from "./insights.js";
 import { pomodoroTimeBlock } from "./sample-sessions.js";
@@ -182,6 +183,16 @@ export function createApi(
           ? recoveryPatch(before, result.snapshot)
           : null;
         return json({ data: { ...result, patch } });
+      }
+      if (path === "/v1/sample/meals") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({ workspace: z.unknown(), query: mealQuery })
+          .parse(await body(request, 3_500_000));
+        return json({
+          data: mealDay(parseWorkspace(input.workspace), input.query),
+        });
       }
       if (path === "/v1/sample/insights") {
         if (request.method !== "POST")
@@ -523,6 +534,13 @@ export function createApi(
           });
         }
         throw new ApiError(405, "method_not_allowed", "Use GET or PATCH.");
+      }
+      if (path === "/v1/meals") {
+        const repo = await authRepo();
+        if (request.method !== "GET")
+          throw new ApiError(405, "method_not_allowed", "Use GET.");
+        const query = mealQuery.parse(Object.fromEntries(url.searchParams));
+        return json({ data: mealDay(await repo.load(), query) });
       }
       if (/^\/v1\/(images|files)(\/|$)/.test(path)) {
         const repo = await authRepo();

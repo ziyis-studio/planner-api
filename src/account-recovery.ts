@@ -73,7 +73,7 @@ export function accountRecovery(
     },
     async backup() {
       const { data, error } = await client.rpc(
-        "planner_export_backup_with_ordering",
+        "planner_export_backup_with_meals",
       );
       fail(error);
       return parseBackup({ ...data, workspace: fromCloud(data.workspace) });

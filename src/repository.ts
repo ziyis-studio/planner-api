@@ -57,7 +57,7 @@ export function supabaseRepository(url: string, key: string) {
     const ownerId = data.user.id;
     const load = async () => {
       const { data, error } = await client.rpc(
-        "planner_load_workspace_with_ordering",
+        "planner_load_workspace_with_meals",
       );
       if (error)
         throw new ApiError(

@@ -4,6 +4,7 @@ import {
   validateDatabaseValues,
 } from "./note-databases.js";
 import { z } from "zod";
+import { mealRecordSchema } from "./meals.js";
 import { PlannerError } from "./model.js";
 import type { Workspace } from "./model.js";
 import { isDay, isTimeZone } from "./time.js";
@@ -122,6 +123,7 @@ const schema = z
         }),
       )
       .default([]),
+    meals: z.array(mealRecordSchema).default([]),
     sleepRecords: z
       .array(
         entity.extend({
@@ -239,6 +241,7 @@ export function parseWorkspace(value: unknown): Workspace {
   );
   ids(state.executions);
   ids(state.sleepRecords);
+  ids(state.meals);
   const sleeps = [...state.sleepRecords].sort(
     (a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt),
   );

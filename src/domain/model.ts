@@ -1,3 +1,4 @@
+import type { Meal } from "./meals.js";
 import type { NoteDatabase, DatabaseRecord } from "./note-databases.js";
 import type { HabitIconName } from "./habit-icons.js";
 import type { ProjectIconName } from "./project-icons.js";
@@ -129,6 +130,7 @@ export interface Workspace {
   noteDatabases: NoteDatabase[];
   databaseRecords: DatabaseRecord[];
   sleepRecords: SleepRecord[];
+  meals: Meal[];
   noteLinks: NoteLink[];
   habits: Habit[];
   occurrences: HabitOccurrence[];
@@ -150,6 +152,7 @@ export const emptyWorkspace = (): Workspace => ({
   noteDatabases: [],
   databaseRecords: [],
   sleepRecords: [],
+  meals: [],
   noteLinks: [],
   habits: [],
   occurrences: [],
