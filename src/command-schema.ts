@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mealFieldsSchema } from "./domain/meals.js";
 import type { Command } from "./domain/commands.js";
 import {
   databaseFieldsSchema,
@@ -49,6 +50,8 @@ const habit = object({
 const save = { id: id.optional(), expectedUpdatedAt: revision.optional() };
 const edit = { id, expectedUpdatedAt: revision.optional() };
 const schemas = {
+  "meal.save": object({ ...save, input: mealFieldsSchema }),
+  "meal.delete": object({ id, expectedUpdatedAt: revision }),
   "task.move": object({
     id,
     stage: z.enum(["todo", "progress", "hold", "done"]),

@@ -30,6 +30,8 @@ import { habitIconNames } from "./habit-icons.js";
 import type { HabitIconName } from "./habit-icons.js";
 import { projectIconNames } from "./project-icons.js";
 import type { ProjectIconName } from "./project-icons.js";
+import { mealFieldsSchema } from "./meals.js";
+import type { MealInput } from "./meals.js";
 import { projectTasks } from "./order.js";
 import { reconcileHabitStarts } from "./habit-occurrences.js";
 
@@ -86,6 +88,13 @@ export interface SleepInput {
   note?: string;
 }
 export type Command =
+  | {
+      type: "meal.save";
+      id?: string;
+      input: MealInput;
+      expectedUpdatedAt?: string;
+    }
+  | { type: "meal.delete"; id: string; expectedUpdatedAt: string }
   | {
       type: "task.move";
       id: string;
@@ -565,6 +574,40 @@ export function applyCommand(
       state.databaseRecords = state.databaseRecords.filter(
         (r) => r.id !== record.id,
       );
+      break;
+    }
+    case "meal.save": {
+      const parsed = mealFieldsSchema.safeParse(command.input);
+      if (!parsed.success)
+        throw new PlannerError("invalid", parsed.error.issues[0].message);
+      const fields = {
+        ...parsed.data,
+        ateAt: validTimestamp(parsed.data.ateAt),
+      };
+      if (Date.parse(fields.ateAt) > Date.parse(now) + 60000)
+        throw new PlannerError(
+          "invalid",
+          "Meals must be recorded in the past or present.",
+        );
+      if (command.id) {
+        const meal = requireItem(state.meals, command.id, "Meal");
+        if (!command.expectedUpdatedAt)
+          throw new PlannerError("conflict", "Reload this meal before saving.");
+        checkRevision(meal, command.expectedUpdatedAt);
+        Object.assign(meal, fields);
+        touch(meal);
+        resultId = meal.id;
+      } else {
+        const meal = { ...entity(), ...fields };
+        state.meals.push(meal);
+        resultId = meal.id;
+      }
+      break;
+    }
+    case "meal.delete": {
+      const meal = requireItem(state.meals, command.id, "Meal");
+      checkRevision(meal, command.expectedUpdatedAt);
+      state.meals = state.meals.filter((m) => m.id !== meal.id);
       break;
     }
     case "sleep.save": {

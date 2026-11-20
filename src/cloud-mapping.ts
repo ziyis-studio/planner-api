@@ -15,6 +15,7 @@ export const tables = [
   ["noteDatabases", "note_databases", ["id"]],
   ["databaseRecords", "database_records", ["id"]],
   ["sleepRecords", "sleep_records", ["id"]],
+  ["meals", "meals", ["id"]],
   ["noteLinks", "note_links", ["id"]],
   ["thoughtTaskLinks", "thought_task_links", ["thought_id", "task_id"]],
   [
@@ -49,7 +50,7 @@ export function fromCloud(value: unknown): Workspace {
   const source = value as Record<string, unknown>;
   const result: Record<string, unknown> = { schemaVersion: 1 };
   for (const [property, table] of tables) {
-    const rows = source[table];
+    const rows = source[table] ?? (table === "meals" ? [] : undefined);
     if (!Array.isArray(rows))
       throw new Error(`The cloud workspace response is missing ${table}.`);
     const links = property.endsWith("Links") && property !== "noteLinks";

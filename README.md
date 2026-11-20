@@ -234,3 +234,5 @@ backend uses `planner_load_workspace_with_ordering` and
 No elevated credentials are required. Private attachments use the caller's JWT,
 owner-only Storage RLS, validated signatures and immutable names. New storage
 policies include a restrictive owner guard even if another broad policy exists.
+
+Meal records, API fields, private photo locations and the external-analysis update contract are documented in [docs/meals.md](docs/meals.md).

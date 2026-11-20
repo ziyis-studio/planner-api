@@ -14,6 +14,7 @@ export const collections = [
   "noteDatabases",
   "databaseRecords",
   "sleepRecords",
+  "meals",
   "noteLinks",
   "habits",
   "occurrences",
