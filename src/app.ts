@@ -1,3 +1,4 @@
+import { linkedActivityBlocks, sampleActivityPage } from "./activity-feed.js";
 import { mealQuery, mealDay } from "./meals.js";
 import { currentWeather } from "./weather.js";
 import { insightQuery, workspaceInsights } from "./insights.js";
@@ -239,6 +240,24 @@ export function createApi(
         }
         return json({ data: { snapshot } });
       }
+      if (path === "/v1/sample/activity-feed") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({
+            workspace: z.unknown(),
+            items: z.array(activitySchema).max(20000),
+            query: activityQuerySchema,
+          })
+          .parse(await body(request, 3_500_000));
+        return json({
+          data: sampleActivityPage(
+            parseWorkspace(input.workspace),
+            input.items,
+            input.query,
+          ),
+        });
+      }
       if (path === "/v1/sample/activity") {
         if (request.method !== "POST")
           throw new ApiError(405, "method_not_allowed", "Use POST.");
@@ -405,12 +424,18 @@ export function createApi(
         const repo = await authRepo();
         if (!repo.activity)
           throw new ApiError(503, "unavailable", "Log unavailable.");
-        if (request.method === "GET")
+        if (request.method === "GET") {
+          const query = activityQuerySchema.parse(
+            Object.fromEntries(url.searchParams),
+          );
+          const [page, state] = await Promise.all([
+            repo.activity.list(query),
+            repo.load(),
+          ]);
           return json({
-            data: await repo.activity.list(
-              activityQuerySchema.parse(Object.fromEntries(url.searchParams)),
-            ),
+            data: { ...page, linkedBlocks: linkedActivityBlocks(state, query) },
           });
+        }
         if (request.method === "POST")
           return json(
             {
