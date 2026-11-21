@@ -1,3 +1,4 @@
+import { emptyWorkspace } from "../src/domain/model";
 import { expect, test, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { activityRepository } from "../src/activity";
@@ -42,8 +43,21 @@ test("database log responses normalize timestamp spellings without losing cursor
 test("activity reads ignore rewrite metadata while validating the target and full pagination cursor", async () => {
   const list = vi.fn(async () => ({ items: [], next: null })),
     id = crypto.randomUUID();
+  const state = emptyWorkspace();
+  state.projects.push({
+    id,
+    title: "Project",
+    description: "",
+    completedAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
   const app = createApi(
-    async () => ({ activity: { list } }) as unknown as ApiRepository,
+    async () =>
+      ({
+        activity: { list },
+        load: async () => state,
+      }) as unknown as ApiRepository,
   );
   const response = await app(
     new Request(

@@ -169,10 +169,12 @@ atomic rollback, portable import and RLS against the complete migration chain.
 
 ### Task and project logs
 
-`GET /v1/activity?kind=task|project&id=<uuid>` returns `{items,next}` with up to
+`GET /v1/activity?kind=task|project&id=<uuid>` returns `{items,next,linkedBlocks}` with up to
 50 entries, newest first. Supply both `beforeAt` and `beforeId` from `next` to
 page older records. Project feeds include logs of tasks currently assigned to
 that project. Each entry retains `target_kind` and `target_id` for its source.
+
+`linkedBlocks` is derived from current task/block associations on the server and includes dates, duration, related tasks, and past/current/upcoming state. Shared blocks appear once in project logs; moving or unlinking a block is reflected on the next fetch. `/v1/sample/activity-feed` returns the same shape from a bounded caller-supplied workspace and manual log entries without accessing an account database.
 
 `POST /v1/activity` accepts `{id,kind,targetId,body}`. The caller supplies a stable
 entry UUID so retries are idempotent; reusing an identity with different content
@@ -227,7 +229,7 @@ backend uses `planner_load_workspace_with_ordering` and
   unmaterialized occurrences. Streaks skip rest days and leave unfinished today
   open. Sleep groups by wake-up date; rhythm uses the longest period each day
   and uses circular 24-hour means for bedtime and wake-up, including midnight and noon. Opposing clock times have no single usual window. Missing days remain missing.
-- Public `/v1/sample` and its `/restore`, `/import`, `/sessions`, `/activity`, `/insights`
+- Public `/v1/sample` and its `/restore`, `/import`, `/sessions`, `/activity`, `/activity-feed`, `/insights`
   operations run bounded stateless sample transactions. They never authenticate
   an account or access its database; sample data is supplied by the caller.
 
