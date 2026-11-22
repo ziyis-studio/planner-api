@@ -17,7 +17,7 @@ const tags = (values: string[] = []) => [
 ];
 const tagId = (name: string) => "tag:" + encodeURIComponent(name);
 /** Derive owner-scoped relationships and filters on the API, never in the browser. */
-export function tagGraph(state: Workspace, query: TagGraphQuery): TagGraph {
+export function tagRecords(state: Workspace) {
   const projects = new Map(state.projects.map((p) => [p.id, p]));
   const items: (TagGraphNode & {
     search: string;
@@ -72,6 +72,10 @@ export function tagGraph(state: Workspace, query: TagGraphQuery): TagGraph {
       search: n.content,
     })),
   ];
+  return items;
+}
+export function tagGraph(state: Workspace, query: TagGraphQuery): TagGraph {
+  const items = tagRecords(state);
   const byId = new Map(items.map((i) => [i.id, i]));
   const base = items.filter(
     (i) =>
