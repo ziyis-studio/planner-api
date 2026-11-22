@@ -1,3 +1,4 @@
+import { tagGraph, tagGraphQuery } from "./tag-graph.js";
 import { linkedActivityBlocks, sampleActivityPage } from "./activity-feed.js";
 import { mealQuery, mealDay } from "./meals.js";
 import { currentWeather } from "./weather.js";
@@ -193,6 +194,16 @@ export function createApi(
           .parse(await body(request, 3_500_000));
         return json({
           data: mealDay(parseWorkspace(input.workspace), input.query),
+        });
+      }
+      if (path === "/v1/sample/tag-graph") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({ workspace: z.unknown(), query: tagGraphQuery })
+          .parse(await body(request, 3_500_000));
+        return json({
+          data: tagGraph(parseWorkspace(input.workspace), input.query),
         });
       }
       if (path === "/v1/sample/insights") {
@@ -394,6 +405,13 @@ export function createApi(
         if (request.method !== "GET")
           throw new ApiError(405, "method_not_allowed", "Use GET.");
         return json({ data: await (await authRepo()).load() });
+      }
+      if (path === "/v1/tag-graph") {
+        const repo = await authRepo();
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const query = tagGraphQuery.parse(await body(request));
+        return json({ data: tagGraph(await repo.load(), query) });
       }
       if (path === "/v1/insights") {
         const repo = await authRepo();
