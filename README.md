@@ -167,6 +167,12 @@ Migrations `20261117112959`, `20261117113951` and `20261117114416` are applied t
 planner-core. `tests/focus-recovery-sql.test.ts` verifies recording links, recovery,
 atomic rollback, portable import and RLS against the complete migration chain.
 
+### Tags graph
+
+`POST /v1/tag-graph` reads the authenticated owner's snapshot and returns `{nodes,links,availableTags,totalMatches,shownItems,truncated}`. The body accepts `q`, `kind` (`all`, `task`, `project`, `note`), `tag`, `includeCompleted` (default true) and `includeUntagged` (default false). Items link to direct tags, tasks also link to their project and inherited project tags, and displayed note references are retained. Unused catalog tags are included. Graphs are bounded at 600 nodes without dangling edges and disclose truncation so filters can narrow large datasets.
+
+`POST /v1/sample/tag-graph` accepts `{workspace,query}` and runs the same read logic against a bounded caller-supplied snapshot, without account access. Existing `tag.create` and `tag.rename` commands manage catalog and record associations; renaming to an existing tag merges connections, and `to: null` removes the tag while keeping records. No schema migration is needed.
+
 ### Task and project logs
 
 `GET /v1/activity?kind=task|project&id=<uuid>` returns `{items,next,linkedBlocks}` with up to
