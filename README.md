@@ -173,6 +173,10 @@ atomic rollback, portable import and RLS against the complete migration chain.
 
 `POST /v1/sample/tag-graph` accepts `{workspace,query}` and runs the same read logic against a bounded caller-supplied snapshot, without account access. Existing `tag.create` and `tag.rename` commands manage catalog and record associations; renaming to an existing tag merges connections, and `to: null` removes the tag while keeping records. No schema migration is needed.
 
+`POST /v1/tag-options` accepts `{q,selected}` and returns up to 50 sorted tag choices, complete usage counts, normalized selected names, and a server-validated creation candidate. Choices combine the catalog, direct tags, and inherited project tags. Searching never creates a tag; the existing `tag.create` command performs creation.
+
+`POST /v1/tag-list` accepts the graph filters plus `offset`, `limit` (up to 100), and `onlyUntagged`. It returns paginated tag groups with task/project/note counts, or complete matching records when a tag or the untagged group is selected. List counts and pagination are independent of the 600-node graph bound. Both reads have stateless `/v1/sample/...` equivalents accepting `{workspace,query}` and never access an account database.
+
 ### Task and project logs
 
 `GET /v1/activity?kind=task|project&id=<uuid>` returns `{items,next,linkedBlocks}` with up to

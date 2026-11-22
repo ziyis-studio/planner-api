@@ -1,3 +1,9 @@
+import {
+  tagOptions,
+  tagOptionsQuery,
+  tagList,
+  tagListQuery,
+} from "./tag-views.js";
 import { tagGraph, tagGraphQuery } from "./tag-graph.js";
 import { linkedActivityBlocks, sampleActivityPage } from "./activity-feed.js";
 import { mealQuery, mealDay } from "./meals.js";
@@ -194,6 +200,19 @@ export function createApi(
           .parse(await body(request, 3_500_000));
         return json({
           data: mealDay(parseWorkspace(input.workspace), input.query),
+        });
+      }
+      if (path === "/v1/sample/tag-options" || path === "/v1/sample/tag-list") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({ workspace: z.unknown(), query: z.unknown() })
+          .parse(await body(request, 3_500_000));
+        const state = parseWorkspace(input.workspace);
+        return json({
+          data: path.endsWith("tag-options")
+            ? tagOptions(state, tagOptionsQuery.parse(input.query))
+            : tagList(state, tagListQuery.parse(input.query)),
         });
       }
       if (path === "/v1/sample/tag-graph") {
@@ -405,6 +424,18 @@ export function createApi(
         if (request.method !== "GET")
           throw new ApiError(405, "method_not_allowed", "Use GET.");
         return json({ data: await (await authRepo()).load() });
+      }
+      if (path === "/v1/tag-options" || path === "/v1/tag-list") {
+        const repo = await authRepo();
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = await body(request);
+        if (path.endsWith("tag-options")) {
+          const query = tagOptionsQuery.parse(input);
+          return json({ data: tagOptions(await repo.load(), query) });
+        }
+        const query = tagListQuery.parse(input);
+        return json({ data: tagList(await repo.load(), query) });
       }
       if (path === "/v1/tag-graph") {
         const repo = await authRepo();

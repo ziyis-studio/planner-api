@@ -30,3 +30,32 @@ export type TagGraph = {
   shownItems: number;
   truncated: boolean;
 };
+
+export type TagOption = { name: string; items: number };
+export type TagOptions = {
+  items: TagOption[];
+  total: number;
+  selected: string[];
+  create: { name: string; allowed: boolean; reason?: string } | null;
+};
+export type TagListRow = {
+  name: string | null;
+  count: number;
+  tasks: number;
+  projects: number;
+  notes: number;
+};
+export type TagListQuery = TagGraphQuery & {
+  offset: number;
+  limit: number;
+  onlyUntagged: boolean;
+};
+export type TagListPage = {
+  availableTags: TagOption[];
+  mode: "tags" | "items";
+  rows: TagListRow[];
+  items: TagGraphNode[];
+  total: number;
+  offset: number;
+  limit: number;
+};
