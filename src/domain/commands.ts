@@ -1,3 +1,4 @@
+import { recurrenceDeletion } from "./recurrence-deletion.js";
 import {
   databaseFieldsSchema,
   databaseValuesSchema,
@@ -94,7 +95,11 @@ export interface SleepInput {
 }
 export type Command =
   | { type: "tasks.materialize"; from: string; to: string }
-  | { type: "task.recurrence.stop"; id: string; expectedUpdatedAt: string }
+  | {
+      type: "task.recurrence.stop" | "task.recurrence.delete";
+      id: string;
+      expectedUpdatedAt: string;
+    }
   | {
       type: "meal.save";
       id?: string;
@@ -444,6 +449,28 @@ export function applyCommand(
   switch (command.type) {
     case "tasks.materialize": {
       materializeRecurringTasks(state, command.from, command.to, entity);
+      break;
+    }
+    case "task.recurrence.delete": {
+      const series = requireItem(
+        state.taskRecurrences,
+        command.id,
+        "Repeat schedule",
+      );
+      checkRevision(series, command.expectedUpdatedAt);
+      const { taskIds, blockIds } = recurrenceDeletion(state, series.id);
+      state.conditions = state.conditions.filter((c) => !taskIds.has(c.taskId));
+      state.thoughtTaskLinks = state.thoughtTaskLinks.filter(
+        (l) => !taskIds.has(l.taskId),
+      );
+      state.blockTaskLinks = state.blockTaskLinks.filter(
+        (l) => !taskIds.has(l.taskId),
+      );
+      state.timeBlocks = state.timeBlocks.filter((b) => !blockIds.has(b.id));
+      state.tasks = state.tasks.filter((t) => !taskIds.has(t.id));
+      state.taskRecurrences = state.taskRecurrences.filter(
+        (r) => r.id !== series.id,
+      );
       break;
     }
     case "task.recurrence.stop": {

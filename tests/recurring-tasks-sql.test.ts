@@ -172,3 +172,96 @@ test("SQL saves series, per-date tasks, conditions and blocks atomically; duplic
     ]),
   ).rejects.toThrow();
 });
+
+test("an entire daily series and its plans are removed in one recoverable transaction and do not regenerate", async () => {
+  await run({
+    type: "task.create",
+    input: {
+      title: "testing",
+      conditions: ["Checked"],
+      recurrence: {
+        frequency: "daily",
+        interval: 1,
+        startsOn: "2026-11-24",
+        endsOn: "2026-11-26",
+        monthDay: 24,
+        time: "08:00",
+        duration: 30,
+        timeZone: "Asia/Kuala_Lumpur",
+      },
+    },
+  });
+  await run({ type: "task.create", input: { title: "testing" } });
+  let state = await load();
+  const series = state.taskRecurrences.find((r) => r.title === "testing")!,
+    members = state.tasks.filter((t) => t.recurrenceId === series.id),
+    outside = state.tasks.find(
+      (t) => t.title === "testing" && !t.recurrenceId,
+    )!;
+  await db.query(
+    "select public.planner_append_log($1,'task',$2,'Retain this log for recovery')",
+    [crypto.randomUUID(), members[0].id],
+  );
+  const shared = await run({
+    type: "block.save",
+    input: {
+      title: "Shared work",
+      startsAt: "2026-11-24T12:00:00+08:00",
+      endsAt: "2026-11-24T12:30:00+08:00",
+      timeZone: "Asia/Kuala_Lumpur",
+      taskIds: [members[0].id, outside.id],
+    },
+  });
+  const before = await load(),
+    after = applyCommand(before, {
+      type: "task.recurrence.delete",
+      id: series.id,
+      expectedUpdatedAt: series.updatedAt,
+    }).snapshot,
+    entry = crypto.randomUUID(),
+    patch = recoveryPatch(before, after);
+  await db.query(
+    "select public.planner_apply_recoverable_changes($1::jsonb,$2::jsonb)",
+    [
+      JSON.stringify(changesBetween(before, after)),
+      JSON.stringify({
+        id: entry,
+        kind: "task",
+        title: series.title,
+        payload: patch,
+      }),
+    ],
+  );
+  state = await load();
+  expect(state.taskRecurrences.some((r) => r.id === series.id)).toBe(false);
+  expect(state.tasks.some((t) => t.recurrenceId === series.id)).toBe(false);
+  expect(state.tasks.some((t) => t.id === outside.id)).toBe(true);
+  expect(state.timeBlocks.some((b) => b.id === shared.result.id)).toBe(true);
+  expect(
+    state.blockTaskLinks.filter((l) => l.timeBlockId === shared.result.id),
+  ).toEqual([{ timeBlockId: shared.result.id, taskId: outside.id }]);
+  const future = applyCommand(state, {
+    type: "tasks.materialize",
+    from: "2026-11-24",
+    to: "2027-01-31",
+  }).snapshot;
+  expect(future).toEqual(state);
+  const restored = restorePatch(state, patch);
+  await db.query(
+    "select public.planner_restore_recovery($1,$2::jsonb,'[]'::jsonb)",
+    [entry, JSON.stringify(changesBetween(state, restored))],
+  );
+  state = await load();
+  expect(state.tasks.filter((t) => t.recurrenceId === series.id)).toHaveLength(
+    3,
+  );
+  expect(state.timeBlocks).toHaveLength(before.timeBlocks.length);
+  expect(
+    (
+      await db.query<any>(
+        "select body from public.planner_activity_log('task',$1)",
+        [members[0].id],
+      )
+    ).rows[0].body,
+  ).toBe("Retain this log for recovery");
+});

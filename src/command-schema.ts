@@ -57,6 +57,7 @@ const schemas = {
       v.to >= v.from && Date.parse(v.to) - Date.parse(v.from) <= 366 * 86400000,
   ),
   "task.recurrence.stop": object({ id, expectedUpdatedAt: revision }),
+  "task.recurrence.delete": object({ id, expectedUpdatedAt: revision }),
   "meal.save": object({ ...save, input: mealFieldsSchema }),
   "meal.delete": object({ id, expectedUpdatedAt: revision }),
   "task.move": object({
