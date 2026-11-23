@@ -4,6 +4,7 @@ import {
   validateDatabaseValues,
 } from "./note-databases.js";
 import { z } from "zod";
+import { recurrenceRecordSchema } from "./task-recurrence.js";
 import { mealRecordSchema } from "./meals.js";
 import { PlannerError } from "./model.js";
 import type { Workspace } from "./model.js";
@@ -31,6 +32,8 @@ const project = entity.extend({
   completedAt: timestamp.nullable(),
 });
 const task = entity.extend({
+  recurrenceId: id.nullable().optional(),
+  scheduledOn: day.nullable().optional(),
   listPosition: z.number().int().nonnegative().max(2147483647).optional(),
   tags: z.array(z.string().min(1).max(40)).max(30).optional(),
   workStatus: z.enum(["active", "on_hold"]).optional(),
@@ -91,6 +94,7 @@ const schema = z
       .array(entity.extend({ name: z.string().min(1).max(40) }))
       .default([]),
     projects: z.array(project),
+    taskRecurrences: z.array(recurrenceRecordSchema).default([]),
     tasks: z.array(task),
     conditions: z.array(condition),
     thoughts: z.array(thought),
@@ -187,6 +191,26 @@ export function parseWorkspace(value: unknown): Workspace {
     habits = ids(state.habits),
     occurrences = ids(state.occurrences),
     blocks = ids(state.timeBlocks);
+  const recurrences = ids(state.taskRecurrences);
+  for (const series of state.taskRecurrences)
+    assert(
+      !series.projectId || projects.has(series.projectId),
+      "A repeat schedule refers to a missing project.",
+    );
+  for (const task of state.tasks)
+    assert(
+      (!task.recurrenceId && !task.scheduledOn) ||
+        (!!task.recurrenceId &&
+          recurrences.has(task.recurrenceId) &&
+          !!task.scheduledOn),
+      "Invalid recurring task reference.",
+    );
+  unique(
+    state.tasks
+      .filter((t) => t.recurrenceId)
+      .map((t) => `${t.recurrenceId}:${t.scheduledOn}`),
+    "Duplicate recurring task dates are not allowed.",
+  );
   ids(state.conditions);
   const notes = ids(state.notes);
   const databases = ids(state.noteDatabases);

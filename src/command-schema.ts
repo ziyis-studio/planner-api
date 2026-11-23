@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recurrenceRuleSchema } from "./domain/task-recurrence.js";
 import { mealFieldsSchema } from "./domain/meals.js";
 import type { Command } from "./domain/commands.js";
 import {
@@ -26,6 +27,7 @@ const project = object({
   workStatus: z.enum(["active", "on_hold"]).optional(),
 });
 const task = object({
+  recurrence: recurrenceRuleSchema.nullable().optional(),
   title,
   description: short.optional(),
   deadline: day.nullable().optional(),
@@ -50,6 +52,11 @@ const habit = object({
 const save = { id: id.optional(), expectedUpdatedAt: revision.optional() };
 const edit = { id, expectedUpdatedAt: revision.optional() };
 const schemas = {
+  "tasks.materialize": object({ from: day, to: day }).refine(
+    (v) =>
+      v.to >= v.from && Date.parse(v.to) - Date.parse(v.from) <= 366 * 86400000,
+  ),
+  "task.recurrence.stop": object({ id, expectedUpdatedAt: revision }),
   "meal.save": object({ ...save, input: mealFieldsSchema }),
   "meal.delete": object({ id, expectedUpdatedAt: revision }),
   "task.move": object({

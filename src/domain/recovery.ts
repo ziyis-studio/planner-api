@@ -7,6 +7,7 @@ import { z } from "zod";
 export const collections = [
   "tagCatalog",
   "projects",
+  "taskRecurrences",
   "tasks",
   "conditions",
   "thoughts",
@@ -293,6 +294,7 @@ export async function copyBackup(
     "id",
     "projectId",
     "taskId",
+    "recurrenceId",
     "habitId",
     "occurrenceId",
     "noteId",

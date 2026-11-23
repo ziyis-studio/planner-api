@@ -248,3 +248,5 @@ owner-only Storage RLS, validated signatures and immutable names. New storage
 policies include a restrictive owner guard even if another broad policy exists.
 
 Meal records, API fields, private photo locations and the external-analysis update contract are documented in [docs/meals.md](docs/meals.md).
+
+Recurring tasks use owner-scoped `task_recurrences` templates and unique `(owner_id, recurrence_id, scheduled_on)` task instances. `task.create` or `task.update` accepts an optional `recurrence` rule; `tasks.materialize` fills an inclusive range of at most one year, with at most 1000 new instances per request; `task.recurrence.stop` requires the series revision. Rules support daily/weekly/monthly intervals, calendar month ends, optional end date and zoned time blocks. Instances keep their own edits and completion; deletion records a skipped date. Generation is driven by workspace/calendar visits, not a cron job. New workspace/backup RPCs retain compatibility with the preceding deployed API.

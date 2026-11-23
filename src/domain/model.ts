@@ -18,6 +18,8 @@ export interface Project extends Entity {
   completedAt: string | null;
 }
 export interface Task extends Entity {
+  recurrenceId?: string | null;
+  scheduledOn?: string | null;
   listPosition?: number;
   tags?: string[];
   workStatus?: "active" | "on_hold";
@@ -123,6 +125,7 @@ export interface Workspace {
   schemaVersion: 1;
   tagCatalog: (Entity & { name: string })[];
   projects: Project[];
+  taskRecurrences: import("./task-recurrence.js").TaskRecurrence[];
   tasks: Task[];
   conditions: CompletionCondition[];
   thoughts: Thought[];
@@ -145,6 +148,7 @@ export const emptyWorkspace = (): Workspace => ({
   schemaVersion: 1,
   tagCatalog: [],
   projects: [],
+  taskRecurrences: [],
   tasks: [],
   conditions: [],
   thoughts: [],
