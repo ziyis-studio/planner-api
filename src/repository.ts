@@ -57,7 +57,7 @@ export function supabaseRepository(url: string, key: string) {
     const ownerId = data.user.id;
     const load = async () => {
       const { data, error } = await client.rpc(
-        "planner_load_workspace_with_meals",
+        "planner_load_workspace_with_recurrences",
       );
       if (error)
         throw new ApiError(
@@ -270,6 +270,25 @@ export function supabaseRepository(url: string, key: string) {
                 })
               : client.rpc("planner_apply_changes", { changes }));
           if (error) {
+            if (
+              command.type === "tasks.materialize" &&
+              ["40001", "23505"].includes(error.code)
+            ) {
+              const fresh = await load();
+              const retry = applyCommand(fresh, command);
+              const retryChanges = changesBetween(fresh, retry.snapshot);
+              if (retryChanges.length) {
+                const saved = await client.rpc("planner_apply_changes", {
+                  changes: retryChanges,
+                });
+                if (saved.error)
+                  throw new PlannerError(
+                    "conflict",
+                    "The repeat schedule changed. Reload before retrying.",
+                  );
+              }
+              return { snapshot: await load() };
+            }
             if (
               command.type === "occurrences.materialize" &&
               error.code === "23505"

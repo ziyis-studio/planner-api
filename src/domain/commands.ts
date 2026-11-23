@@ -33,11 +33,16 @@ import type { ProjectIconName } from "./project-icons.js";
 import { mealFieldsSchema } from "./meals.js";
 import type { MealInput } from "./meals.js";
 import { projectTasks } from "./order.js";
+import {
+  attachRecurrence,
+  materializeRecurringTasks,
+} from "./recurring-tasks.js";
 import { reconcileHabitStarts } from "./habit-occurrences.js";
 
 export type OrderRevision = Pick<Entity, "id" | "updatedAt">;
 
 export interface TaskInput {
+  recurrence?: import("./task-recurrence.js").RecurrenceRule | null;
   initialStage?: "todo" | "progress" | "hold" | "done";
   tags?: string[];
   workStatus?: "active" | "on_hold";
@@ -88,6 +93,8 @@ export interface SleepInput {
   note?: string;
 }
 export type Command =
+  | { type: "tasks.materialize"; from: string; to: string }
+  | { type: "task.recurrence.stop"; id: string; expectedUpdatedAt: string }
   | {
       type: "meal.save";
       id?: string;
@@ -173,6 +180,7 @@ export type Command =
           | "deadline"
           | "tags"
           | "workStatus"
+          | "recurrence"
         >
       >;
       expectedUpdatedAt?: string;
@@ -434,6 +442,21 @@ export function applyCommand(
   };
   let resultId: string | undefined;
   switch (command.type) {
+    case "tasks.materialize": {
+      materializeRecurringTasks(state, command.from, command.to, entity);
+      break;
+    }
+    case "task.recurrence.stop": {
+      const series = requireItem(
+        state.taskRecurrences,
+        command.id,
+        "Repeat schedule",
+      );
+      checkRevision(series, command.expectedUpdatedAt);
+      series.active = false;
+      touch(series);
+      break;
+    }
     case "task.move": {
       const task = requireItem(state.tasks, command.id, "Task");
       checkRevision(task, command.expectedUpdatedAt);
@@ -736,7 +759,12 @@ export function applyCommand(
           touch(catalog);
         }
       }
-      for (const item of [...state.tasks, ...state.projects, ...state.notes]) {
+      for (const item of [
+        ...state.tasks,
+        ...state.projects,
+        ...state.notes,
+        ...state.taskRecurrences,
+      ]) {
         if (item.tags?.includes(command.from)) {
           item.tags = normalizeTags(
             item.tags.flatMap((tag) =>
@@ -789,6 +817,8 @@ export function applyCommand(
           position,
         }),
       );
+      if (input.recurrence)
+        attachRecurrence(state, task, input.recurrence, entity);
       linkSources("task", task.id, input.sourceThoughtIds ?? []);
       if (!task.completedAt) reopenParent(task.projectId);
       resultId = task.id;
@@ -818,6 +848,8 @@ export function applyCommand(
           task.projectPosition = nextProjectPosition(nextProject);
         task.projectId = nextProject;
       }
+      if (command.patch.recurrence)
+        attachRecurrence(state, task, command.patch.recurrence, entity);
       touch(task);
       if (!task.completedAt) reopenParent(task.projectId);
       resultId = task.id;
@@ -856,7 +888,18 @@ export function applyCommand(
       break;
     }
     case "task.delete": {
-      requireItem(state.tasks, command.id, "Task");
+      const task = requireItem(state.tasks, command.id, "Task");
+      const series = state.taskRecurrences.find(
+        (r) => r.id === task.recurrenceId,
+      );
+      if (
+        series &&
+        task.scheduledOn &&
+        !series.skippedOn.includes(task.scheduledOn)
+      ) {
+        series.skippedOn.push(task.scheduledOn);
+        touch(series);
+      }
       state.tasks = state.tasks.filter((item) => item.id !== command.id);
       state.conditions = state.conditions.filter(
         (item) => item.taskId !== command.id,
@@ -970,6 +1013,12 @@ export function applyCommand(
       break;
     }
     case "project.delete": {
+      for (const series of state.taskRecurrences.filter(
+        (r) => r.projectId === command.id,
+      )) {
+        series.projectId = null;
+        touch(series);
+      }
       requireItem(state.projects, command.id, "Project");
       for (const task of projectTasks(state, command.id)) {
         const position = nextProjectPosition(null);

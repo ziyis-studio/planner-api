@@ -4,6 +4,7 @@ import { parseWorkspace } from "./domain/validation.js";
 export const tables = [
   ["tagCatalog", "tag_catalog", ["id"]],
   ["projects", "projects", ["id"]],
+  ["taskRecurrences", "task_recurrences", ["id"]],
   ["tasks", "tasks", ["id"]],
   ["conditions", "task_completion_conditions", ["id"]],
   ["thoughts", "thoughts", ["id"]],
@@ -50,7 +51,9 @@ export function fromCloud(value: unknown): Workspace {
   const source = value as Record<string, unknown>;
   const result: Record<string, unknown> = { schemaVersion: 1 };
   for (const [property, table] of tables) {
-    const rows = source[table] ?? (table === "meals" ? [] : undefined);
+    const rows =
+      source[table] ??
+      (["meals", "task_recurrences"].includes(table) ? [] : undefined);
     if (!Array.isArray(rows))
       throw new Error(`The cloud workspace response is missing ${table}.`);
     const links = property.endsWith("Links") && property !== "noteLinks";
