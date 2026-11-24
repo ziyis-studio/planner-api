@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "./repository.js";
 import {
   activitySchema,
+  activityDeleteSchema,
   activityWriteSchema,
   activityQuerySchema,
 } from "./domain/activity.js";
@@ -61,6 +62,15 @@ export function activityRepository(client: SupabaseClient) {
             ? { beforeAt: last.created_at, beforeId: last.id }
             : null,
       };
+    },
+    async remove(raw: unknown) {
+      const q = activityDeleteSchema.parse(raw);
+      const { error } = await client.rpc("planner_delete_log", {
+        entry_id: q.id,
+        entity_kind: q.kind,
+        entity_id: q.targetId,
+      });
+      check(error);
     },
     async append(raw: unknown) {
       const q = activityWriteSchema.parse(raw);

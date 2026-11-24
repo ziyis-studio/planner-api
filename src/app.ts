@@ -23,7 +23,11 @@ import {
 } from "./domain/recovery.js";
 import { isTimeZone } from "./domain/time.js";
 import { sessionBatch, sessionQuery } from "./sessions.js";
-import { activityWriteSchema, activityQuerySchema } from "./domain/activity.js";
+import {
+  activityWriteSchema,
+  activityQuerySchema,
+  activityDeleteSchema,
+} from "./domain/activity.js";
 import { parseCommand } from "./command-schema.js";
 import { z } from "zod";
 import type { ApiRepository } from "./repository.js";
@@ -288,6 +292,34 @@ export function createApi(
           ),
         });
       }
+      if (path === "/v1/sample/activity/remove") {
+        if (request.method !== "POST")
+          throw new ApiError(405, "method_not_allowed", "Use POST.");
+        const input = z
+          .strictObject({
+            workspace: z.unknown(),
+            items: z.array(activitySchema).max(20000),
+            entry: activityDeleteSchema,
+          })
+          .parse(await body(request, 3_500_000));
+        const state = parseWorkspace(input.workspace),
+          q = input.entry;
+        const targets = q.kind === "task" ? state.tasks : state.projects;
+        if (!targets.some((t) => t.id === q.targetId))
+          throw new ApiError(404, "not_found", "Target not found.");
+        return json({
+          data: {
+            items: input.items.filter(
+              (row) =>
+                !(
+                  row.id === q.id &&
+                  row.target_kind === q.kind &&
+                  row.target_id === q.targetId
+                ),
+            ),
+          },
+        });
+      }
       if (path === "/v1/sample/activity") {
         if (request.method !== "POST")
           throw new ApiError(405, "method_not_allowed", "Use POST.");
@@ -468,6 +500,24 @@ export function createApi(
             ),
           });
         throw new ApiError(405, "method_not_allowed", "Use GET or POST.");
+      }
+      const activityEntry = /^\/v1\/activity\/([0-9a-f-]{36})$/i.exec(path);
+      if (activityEntry) {
+        const repo = await authRepo();
+        if (!repo.activity)
+          throw new ApiError(503, "unavailable", "Log unavailable.");
+        if (request.method !== "DELETE")
+          throw new ApiError(405, "method_not_allowed", "Use DELETE.");
+        const input = z
+          .strictObject({
+            kind: z.enum(["task", "project"]),
+            targetId: z.uuid(),
+          })
+          .parse(await body(request));
+        await repo.activity.remove(
+          activityDeleteSchema.parse({ ...input, id: activityEntry[1] }),
+        );
+        return json({ data: { deleted: true } });
       }
       if (path === "/v1/activity") {
         const repo = await authRepo();

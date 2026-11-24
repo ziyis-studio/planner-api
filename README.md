@@ -190,7 +190,7 @@ that project. Each entry retains `target_kind` and `target_id` for its source.
 entry UUID so retries are idempotent; reusing an identity with different content
 returns 409. Bodies are plain text, trimmed and limited to 10,000 characters.
 The target must belong to the authenticated owner. No owner/author field is
-accepted. These private logs are append-only; no edit/delete route is exposed.
+accepted. Log bodies remain immutable; owners can remove individual entries through the authenticated DELETE route.
 
 The `entity_logs` table has owner RLS and owner-scoped target foreign keys. Logs
 retain their original target identity when an item enters Trash, so restoring
@@ -252,3 +252,5 @@ Meal records, API fields, private photo locations and the external-analysis upda
 Recurring tasks use owner-scoped `task_recurrences` templates and unique `(owner_id, recurrence_id, scheduled_on)` task instances. `task.create` or `task.update` accepts an optional `recurrence` rule; `tasks.materialize` fills an inclusive range of at most one year, with at most 1000 new instances per request; `task.recurrence.stop` requires the series revision. Rules support daily/weekly/monthly intervals, calendar month ends, optional end date and zoned time blocks. Instances keep their own edits and completion; deletion records a skipped date. Generation is driven by workspace/calendar visits, not a cron job. New workspace/backup RPCs retain compatibility with the preceding deployed API.
 
 `task.recurrence.delete` deletes an entire series with its expected revision, every generated task (including completed or edited instances), conditions, links, and exclusively linked planned time blocks in one recoverable transaction. Shared task/habit plans and recorded focus blocks are retained. Restoring the single Trash entry restores the series and removed instances/plans. A deleted series cannot materialize again.
+
+Manual activity entries can be removed with `DELETE /v1/activity/:id` and a strict `{kind,targetId}` body. `planner_delete_log` runs as the authenticated caller, checks owner plus source identity, and permanently removes only that entry. Log body edits remain disallowed. Sample clients use the validated stateless `/v1/sample/activity/remove` route. Focus sessions accept whole-minute durations from 1 to 180 minutes; break modes retain 300/900 seconds. The API, SQL constraint, backup validator and generated time blocks retain each completed session's actual duration.
