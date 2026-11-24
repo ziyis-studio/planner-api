@@ -3,6 +3,7 @@ import { emptyWorkspace } from "../src/domain/model";
 import { createApi } from "../src/app";
 import type { ApiRepository } from "../src/repository";
 const activity = {
+  remove: vi.fn(async () => {}),
   list: vi.fn(async () => ({ items: [], next: null })),
   append: vi.fn(async () => ({ id: crypto.randomUUID() })),
 };
@@ -74,4 +75,39 @@ test("activity requires authentication and validates target, comment and keyset 
       })
     ).status,
   ).toBe(422);
+});
+
+test("deletion authenticates and validates both log ID and source target, rejecting caller-owned account fields", async () => {
+  const id = crypto.randomUUID(),
+    targetId = crypto.randomUUID();
+  expect(
+    (
+      await app(
+        new Request("http://localhost/v1/activity/" + id, { method: "DELETE" }),
+      )
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await call("/v1/activity/" + id, {
+        method: "DELETE",
+        body: JSON.stringify({ kind: "task", targetId }),
+      })
+    ).status,
+  ).toBe(200);
+  expect(activity.remove).toHaveBeenCalledWith({ id, kind: "task", targetId });
+  const count = activity.remove.mock.calls.length;
+  expect(
+    (
+      await call("/v1/activity/" + id, {
+        method: "DELETE",
+        body: JSON.stringify({
+          kind: "task",
+          targetId,
+          owner_id: crypto.randomUUID(),
+        }),
+      })
+    ).status,
+  ).toBe(422);
+  expect(activity.remove.mock.calls).toHaveLength(count);
 });

@@ -1,3 +1,4 @@
+import { validSessionDuration } from "./session-duration.js";
 import { activitySchema } from "./activity.js";
 import type { ActivityLog } from "./activity.js";
 import type { Workspace } from "./model.js";
@@ -207,7 +208,7 @@ export const sessionSchema = z
   .strict()
   .refine(
     (r) =>
-      r.duration_seconds === { focus: 1500, short: 300, long: 900 }[r.mode] &&
+      validSessionDuration(r.mode, r.duration_seconds) &&
       Date.parse(r.completed_at) - Date.parse(r.started_at) >=
         r.duration_seconds * 1000,
     "Invalid focus duration",

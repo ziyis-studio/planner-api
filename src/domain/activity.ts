@@ -51,3 +51,9 @@ export type ActivityPage = {
   next: { beforeAt: string; beforeId: string } | null;
   linkedBlocks: LinkedActivityBlock[];
 };
+
+export const activityDeleteSchema = z.strictObject({
+  id: z.uuid(),
+  kind: activityKind,
+  targetId: z.uuid(),
+});

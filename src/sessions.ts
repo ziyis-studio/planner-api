@@ -1,3 +1,4 @@
+import { validSessionDuration } from "./domain/session-duration.js";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "./repository.js";
@@ -18,8 +19,7 @@ export const sessionBatch = z.strictObject({
         })
         .refine(
           (r) =>
-            r.durationSeconds ===
-              { focus: 1500, short: 300, long: 900 }[r.mode] &&
+            validSessionDuration(r.mode, r.durationSeconds) &&
             r.completedAt >= r.startedAt + r.durationSeconds * 1000 &&
             r.completedAt - r.startedAt <= 7 * 86400000 &&
             r.completedAt <= Date.now() + 60000,

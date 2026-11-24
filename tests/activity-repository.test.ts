@@ -68,3 +68,20 @@ test("activity reads ignore rewrite metadata while validating the target and ful
   expect(response.status).toBe(200);
   expect(list).toHaveBeenCalledExactlyOnceWith({ kind: "project", id });
 });
+
+test("log deletion passes the original source identity to the scoped SQL RPC", async () => {
+  const rpc = vi.fn(async () => ({ data: null, error: null as any })),
+    repo = activityRepository({ rpc } as unknown as SupabaseClient);
+  const id = crypto.randomUUID(),
+    targetId = crypto.randomUUID();
+  await repo.remove({ id, kind: "task", targetId });
+  expect(rpc).toHaveBeenCalledWith("planner_delete_log", {
+    entry_id: id,
+    entity_kind: "task",
+    entity_id: targetId,
+  });
+  rpc.mockResolvedValueOnce({ data: null, error: { code: "PT404" } });
+  await expect(
+    repo.remove({ id, kind: "task", targetId }),
+  ).rejects.toMatchObject({ status: 404 });
+});
